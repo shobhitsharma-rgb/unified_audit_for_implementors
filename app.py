@@ -8,17 +8,22 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #050e39 0%, #0a1128 100%) !important;
     }
+    
+    /* Target text elements but EXCLUDE Material Icons (which use spans/i with specific classes) */
     [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] span, 
     [data-testid="stSidebar"] h1, 
     [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3 {
-        color: #ffffff !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label {
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] label {
         color: #ffffff !important;
     }
+    
+    /* Ensure radio buttons inside the sidebar remain visible */
+    [data-testid="stSidebar"] div[role="radiogroup"] label p {
+        color: #ffffff !important;
+    }
+    
+    /* Subtle divider */
     [data-testid="stSidebarUserContent"] hr {
         border-color: rgba(255, 255, 255, 0.1) !important;
     }
