@@ -53,7 +53,7 @@ ALLOWED_JOB_TITLES = [
     'Dispatch', 'Management', 'Admin', 'Survey', 'Warehouse', 'Walker', 
     'Driver', 'Helper', 'Driver-Lite', 'Driver-Step Van', 
     'Driver-Unscheduled', 'Lead Driver', 'DDU Dedicated', 'DDU Shared', 
-    'Non-DSP Related', 'Driver -Major Appliance'
+    'Non-DSP Related', 'Driver-Major Appliance', 'E-Biker', 'TSO-PV Driver'
 ]
 
 def norm_colname(c: str) -> str:
@@ -606,8 +606,9 @@ This tool automatically applies the following corrections to your Paycom Census 
                 help="Single-sheet CSV of the cleaned census (the audit-trail tab from the XLSX is omitted).",
             )
 
-        from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
-        render_job_title_mapping(df_paycom, "paycom", resolved_field_map, key_prefix="pc_sanity")
+    # --- Job Title Mapping Section ---
+    from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
+    render_job_title_mapping(df_paycom, "paycom", resolved_field_map, key_prefix="pc_sanity")
 
 def render_census_generator():
     st.title("Paycom - Census Generator")

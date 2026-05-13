@@ -48,7 +48,7 @@ if platform == "ADP":
 elif platform == "Paycom":
     st.sidebar.subheader("Paycom Tools")
     paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="paycom_nav")
-    
+
     if paycom_tool == "Census Sanity":
         from apps.paycom.census_generator import render_census_sanity_check
         render_census_sanity_check()
