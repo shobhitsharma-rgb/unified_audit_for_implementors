@@ -120,15 +120,11 @@ def render_auto_fix_options(key_prefix):
     
     col_fix1, col_fix2 = st.columns(2)
     with col_fix1:
-        fix_flsa = st.checkbox("Enforce FLSA/Pay Type alignment (e.g. Salaried = Exempt)", value=False, key=f"{key_prefix}_fix_flsa", help="If the 'FLSA' is blank, this will fill it automatically based on whether they are Hourly (sets to Non-Exempt) or Salaried (sets to Exempt). It will NEVER change an existing FLSA status.")
-        fix_driver_smart = st.checkbox("Enable Smart Driver Correction (Dept/Job -> FLSA/Pay Type)", value=False, key=f"{key_prefix}_fix_driver_smart", help="Designed specifically for Drivers. If the Job, FLSA, or Pay Type is blank for a driver, it will fill them as: Job='Driver', FLSA='Non-Exempt', and Pay Type='Hourly'. It only fills missing info and won't overwrite your existing data.")
-        fix_blank_jt_to_driver = st.checkbox("Auto-Fill blank Job Title to 'Driver' for Non-Exempt Hourly employees", value=False, key=f"{key_prefix}_fix_blank_jt_to_driver", help="If Job Title Description is blank AND the employee is Non-Exempt AND Hourly, set Job Title to 'Driver'. Only fills missing values — never overwrites an existing Job Title.")
-
-    with col_fix2:
         fix_status = st.checkbox("Auto-Map Employment Status (e.g. Inactive -> Terminated)", value=False, key=f"{key_prefix}_fix_status")
         fix_type = st.checkbox("Auto-Map Worker Category (e.g. Intern -> Part Time)", value=False, key=f"{key_prefix}_fix_type")
         fix_leave_to_active = st.checkbox("Reclassify 'Leave' to 'Active' when Termination Date is blank", value=False, key=f"{key_prefix}_fix_leave_to_active", help="If Position Status = 'Leave' but Termination Date is empty, set Position Status to 'Active'.")
-        
+
+    with col_fix2:
         # Standard Hours fixes (ADP Only usually)
         if "adp" in key_prefix:
             fix_zip = st.checkbox("Auto-Fix Zip Code (Pad 4-digits & trim to 5-digits)", value=False, key=f"{key_prefix}_fix_zip")
@@ -138,7 +134,7 @@ def render_auto_fix_options(key_prefix):
             fix_zip, rename_zip_col, replace_gender_col = False, False, False
 
     return {
-        'fix_flsa': fix_flsa,
+        'fix_flsa': True,
         'fix_emails': True,
         'fix_job_title': True,
         'fix_status': fix_status,
@@ -147,11 +143,11 @@ def render_auto_fix_options(key_prefix):
         'fix_dol_status': True,
         'fix_std_hours': True,
         'fix_zip': fix_zip,
-        'fix_driver_smart': fix_driver_smart,
+        'fix_driver_smart': True,
         'fix_leave_to_active': fix_leave_to_active,
         'rename_zip_col': rename_zip_col,
         'replace_gender_col': replace_gender_col,
-        'fix_blank_jt_to_driver': fix_blank_jt_to_driver
+        'fix_blank_jt_to_driver': True
     }
 
 def get_manager_info(df_adp, resolved_field_map):
