@@ -32,7 +32,7 @@ st.markdown("""
 
 # Sidebar navigation
 st.sidebar.title("Data Migration Assistant")
-platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom"])
+platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom", "Universal Tools"])
 
 if platform == "ADP":
     st.sidebar.subheader("ADP Tools")
@@ -50,7 +50,7 @@ if platform == "ADP":
 
 elif platform == "Paycom":
     st.sidebar.subheader("Paycom Tools")
-    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Selective Employee Extractor"], key="paycom_nav")
+    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="paycom_nav")
     
     if paycom_tool == "Census Sanity":
         from apps.paycom.census_generator import render_census_sanity_check
@@ -58,6 +58,11 @@ elif platform == "Paycom":
     elif paycom_tool == "Census Audit":
         from apps.paycom.census_audit import render_ui
         render_ui()
-    elif paycom_tool == "Selective Employee Extractor":
+
+elif platform == "Universal Tools":
+    st.sidebar.subheader("Universal Tools")
+    univ_tool = st.sidebar.radio("Select Tool", ["Selective Employee Extractor"], key="univ_nav")
+    
+    if univ_tool == "Selective Employee Extractor":
         from apps.common.employee_extractor import render_employee_extractor
         render_employee_extractor()
