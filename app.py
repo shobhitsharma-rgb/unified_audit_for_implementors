@@ -31,7 +31,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar navigation
-st.sidebar.title("Navigation")
+st.sidebar.title("Data Migration Assistant")
 platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom"])
 
 if platform == "ADP":
