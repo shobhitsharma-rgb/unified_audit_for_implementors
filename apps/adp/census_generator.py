@@ -131,12 +131,11 @@ def render_auto_fix_options(key_prefix):
         
         # Standard Hours fixes (ADP Only usually)
         if "adp" in key_prefix:
-            rename_std_hours = st.checkbox("Rename 'Standard Hours' column to 'Working hours per Week'", value=False, key=f"{key_prefix}_rename_std_hours")
             fix_zip = st.checkbox("Auto-Fix Zip Code (Pad 4-digits & trim to 5-digits)", value=False, key=f"{key_prefix}_fix_zip")
             rename_zip_col = st.checkbox("Rename 'Primary Address: Zip / Postal Code' to 'Primary Address: Zip Code'", value=False, key=f"{key_prefix}_rename_zip_col", help="Renames the source 'Primary Address: Zip / Postal Code' header to 'Primary Address: Zip Code' in the downloaded file. Cell values are not changed.")
             replace_gender_col = st.checkbox("Replace 'Gender / Sex (Self-ID)' with the 'Sex' column", value=False, key=f"{key_prefix}_replace_gender_col", help="Drops the existing 'Gender / Sex (Self-ID)' column and renames the 'Sex' column to 'Gender / Sex (Self-ID)' so the populated Male/Female values land under the canonical Uzio header.")
         else:
-            rename_std_hours, fix_zip, rename_zip_col, replace_gender_col = False, False, False, False
+            fix_zip, rename_zip_col, replace_gender_col = False, False, False
 
     return {
         'fix_flsa': fix_flsa,
@@ -148,7 +147,6 @@ def render_auto_fix_options(key_prefix):
         'fix_type': fix_type,
         'fix_dol_status': True,
         'fix_std_hours': True,
-        'rename_std_hours': rename_std_hours,
         'fix_zip': fix_zip,
         'fix_driver_smart': fix_driver_smart,
         'fix_leave_to_active': fix_leave_to_active,
@@ -531,10 +529,6 @@ def render_census_sanity_check():
                     mask_sh = df_download[c_sh].isna() | (df_download[c_sh].astype(str).str.strip().str.lower() == "nan") | (df_download[c_sh].astype(str).str.strip() == "")
                     df_download.loc[mask_sh, c_sh] = "0"
 
-        if fix_options.get('rename_std_hours'):
-            c_sh = resolved_field_map.get('Working Hours')
-            if c_sh and c_sh in norm_to_orig:
-                norm_to_orig[c_sh] = "Working hours per Week"
 
         if fix_options.get('rename_zip_col'):
             c_zip = resolved_field_map.get('Zip')

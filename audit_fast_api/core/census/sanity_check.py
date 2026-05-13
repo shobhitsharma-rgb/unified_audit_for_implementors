@@ -12,7 +12,7 @@ Toggles mirrored:
   fix_flsa, fix_emails, fix_job_title, fix_driver_smart, fix_license,
   fix_status, fix_inactive (alias of fix_status), fix_type, fix_dol_status,
   fix_leave_to_active, fix_blank_jt_to_driver,
-  fix_std_hours, rename_std_hours, fix_zip, rename_zip_col, replace_gender_col
+  fix_std_hours, fix_zip, rename_zip_col, replace_gender_col
 """
 import io
 import re
@@ -412,10 +412,6 @@ def generate_corrected_census_xlsx(content, field_map_dict, fix_options=None,
                 df_download.loc[mask_sh, c_sh] = "0"
 
     # 9. Header renames (column-level — change norm_to_orig label)
-    if fix_options.get('rename_std_hours'):
-        c_sh = resolved_field_map.get('Working Hours')
-        if c_sh and c_sh in norm_to_orig:
-            norm_to_orig[c_sh] = "Working hours per Week"
 
     if fix_options.get('rename_zip_col'):
         c_zip = resolved_field_map.get('Zip')
