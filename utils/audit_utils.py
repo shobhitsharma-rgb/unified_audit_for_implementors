@@ -1609,8 +1609,18 @@ def generate_excel_with_audit(df_main, df_audit, sheet_name_main="Corrected Cens
         if not df_audit.empty:
             df_audit.to_excel(writer, index=False, sheet_name=sheet_name_audit)
             
-            # Formatting the audit sheet
+            # Formatting the main sheet
             workbook = writer.book
+            worksheet_main = writer.sheets[sheet_name_main]
+            text_format = workbook.add_format({'num_format': '@'}) # Text format
+            
+            for col_num, col_name in enumerate(df_main.columns):
+                if any(k in str(col_name).lower() for k in ["zip", "postal", "zipcode"]):
+                    worksheet_main.set_column(col_num, col_num, 15, text_format)
+                else:
+                    worksheet_main.set_column(col_num, col_num, 18)
+
+            # Formatting the audit sheet
             worksheet = writer.sheets[sheet_name_audit]
             header_format = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
             for col_num, value in enumerate(df_audit.columns.values):

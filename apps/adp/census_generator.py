@@ -235,6 +235,8 @@ This tool automatically applies the following corrections to your ADP Census dat
     else:
         st.info("💡 No unique work locations detected in this file for mapping.")
 
+    # New: Default Work Location for Blanks
+    default_work_loc = st.text_input("📍 Default Work Location for Blanks", placeholder="Type to fill all blank work locations...", key="adp_sanity_default_loc_input")
     st.markdown("---")
     
     from utils.audit_utils import validate_source_data
@@ -363,298 +365,258 @@ This tool automatically applies the following corrections to your ADP Census dat
                     st.markdown(f"- ⚠️ **Intern Codes:** {len(intern_corrections)} employee(s) *(Mapping Intern to Part Time)*.{get_ids_str(intern_corrections)}")
                 if not email_fallbacks.empty: 
                     st.markdown(f"- 📧 **Email Fallbacks:** {len(email_fallbacks)} employee(s) *(Using personal where work email is missing)*.{get_ids_str(email_fallbacks)}")
-    else:
-        st.success("✅ Source data passed all integrity checks!")
+    else:    # --- Persistent Download Section ---
+        show_key = f"adp_sanity_show_dl"
+        if st.button("Download Corrected Source", type="primary", key="adp_sanity_main_btn"):
+            st.session_state[show_key] = True
 
-    if st.button("Download Corrected Source", type="primary"):
-        df_download = df_adp.copy()
-        
-        # --- Collect Audit Info ---
-        audit_trail = []
-        emp_id_col = resolved_field_map.get('Employee ID')
-        emp_name_col = next((c for c in df_download.columns if 'name' in str(c).lower()), None)
-        
-        def get_row_name(row_idx):
-            if emp_name_col: return str(df_download.at[row_idx, emp_name_col]).strip()
-            return "N/A"
-        
-        def log_change(row_idx, field, old_val, new_val, comment):
-            eid = str(df_download.at[row_idx, emp_id_col]) if emp_id_col else "N/A"
-            audit_trail.append({
-                'Employee ID': eid,
-                'Employee Name': get_row_name(row_idx),
-                'Field Changed': field,
-                'Old Value': str(old_val) if pd.notna(old_val) else "(blank)",
-                'Assumed Value': str(new_val),
-                'Comments': comment
-            })
-        
-        # Apply Fixes
-        if fix_options.get('fix_emails'):
-            c_work = resolved_field_map.get('Work Email')
-            c_pers = resolved_field_map.get('Personal Email')
-            if c_work and c_pers and c_work in df_download.columns and c_pers in df_download.columns:
-                mask = df_download[c_work].isna() | (df_download[c_work].astype(str).str.strip() == "")
-                for idx in df_download[mask].index:
-                    old_e = df_download.at[idx, c_work]
-                    new_e = df_download.at[idx, c_pers]
-                    if pd.notna(new_e) and str(new_e).strip():
-                        df_download.at[idx, c_work] = new_e
-                        log_change(idx, "Work Email", old_e, new_e, "Personal email used as fallback for missing work email.")
-
-        if fix_options.get('fix_leave_to_active'):
-            c_pos = resolved_field_map.get('Employment Status')
-            c_term = resolved_field_map.get('Termination Date')
-            if c_pos and c_term and c_pos in df_download.columns and c_term in df_download.columns:
-                pos_series = df_download[c_pos].astype(str).str.strip().str.lower()
-                term_series = df_download[c_term].astype(str).str.strip().str.lower()
-                mask_leave = pos_series == "leave"
-                mask_term_blank = df_download[c_term].isna() | (term_series == "") | (term_series == "nan")
-                for idx in df_download[mask_leave & mask_term_blank].index:
-                    old_p = df_download.at[idx, c_pos]
-                    df_download.at[idx, c_pos] = "Active"
-                    log_change(idx, "Position Status", old_p, "Active", "Reclassified 'Leave' to 'Active' because Termination Date is blank.")
-
-        if fix_options.get('fix_dol_status'):
-            c_dol = resolved_field_map.get('Employment Type')
-            if c_dol and c_dol in df_download.columns:
-                mask_blank = df_download[c_dol].isna() | (df_download[c_dol].astype(str).str.strip().str.lower() == "nan") | (df_download[c_dol].astype(str).str.strip() == "")
-                for idx in df_download[mask_blank].index:
-                    old_d = df_download.at[idx, c_dol]
-                    df_download.at[idx, c_dol] = "Full Time"
-                    log_change(idx, "Employment Type", old_d, "Full Time", "Defaulted blank value to 'Full Time' for active employee.")
-
-        if fix_options.get('fix_job_title'):
-            c_job = resolved_field_map.get('Job Title')
-            c_dep = resolved_field_map.get('Department')
-            if c_job and c_dep and c_job in df_download.columns and c_dep in df_download.columns:
-                mask = df_download[c_job].isna() | (df_download[c_job].astype(str).str.strip().str.lower() == "nan") | (df_download[c_job].astype(str).str.strip() == "")
-                for idx in df_download[mask].index:
-                    old_val = df_download.at[idx, c_job]
-                    new_val = df_download.at[idx, c_dep]
-                    if pd.notna(new_val) and str(new_val).strip():
-                        df_download.at[idx, c_job] = new_val
-                        log_change(idx, "Job Title", old_val, new_val, "Position was blank; filled using Department Description.")
-
-        if fix_options.get('fix_flsa'):
-            c_flsa = resolved_field_map.get('FLSA Classification')
-            c_pt = resolved_field_map.get('Pay Type')
-            if c_flsa and c_pt and c_flsa in df_download.columns and c_pt in df_download.columns:
-                mask_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower() == "nan") | (df_download[c_flsa].astype(str).str.strip() == "")
-                for idx in df_download[mask_blank].index:
-                    pt_val = str(df_download.at[idx, c_pt]).lower().strip()
-                    old_f = df_download.at[idx, c_flsa]
-                    if 'hourly' in pt_val:
-                        df_download.at[idx, c_flsa] = "Non-Exempt"
-                        log_change(idx, "FLSA Status", old_f, "Non-Exempt", "Applied based on Hourly pay type.")
-                    elif 'salaried' in pt_val:
-                        df_download.at[idx, c_flsa] = "Exempt"
-                        log_change(idx, "FLSA Status", old_f, "Exempt", "Applied based on Salaried pay type.")
-
-        if fix_options.get('fix_driver_smart'):
-            c_jt = resolved_field_map.get('Job Title')
-            c_dept = resolved_field_map.get('Department')
-            c_flsa = resolved_field_map.get('FLSA Classification')
-            if c_jt and c_dept and c_flsa and c_jt in df_download.columns and c_dept in df_download.columns and c_flsa in df_download.columns:
-                # 1. If Job is blank, check Dept for 'driver'
-                mask_jt_blank = df_download[c_jt].isna() | (df_download[c_jt].astype(str).str.strip().str.lower() == "nan") | (df_download[c_jt].astype(str).str.strip() == "")
-                mask_dept_driver = df_download[c_dept].astype(str).str.lower().str.contains("driver", na=False)
-                
-                for idx in df_download[mask_jt_blank & mask_dept_driver].index:
-                    old_j = df_download.at[idx, c_jt]
-                    new_j = df_download.at[idx, c_dept]
-                    df_download.at[idx, c_jt] = new_j
-                    log_change(idx, "Job Title (Smart Driver)", old_j, new_j, "Automatically assigned 'Driver' title from Department.")
-                
-                # 2. Now check if Job is Driver and FLSA is blank
-                mask_job_driver = df_download[c_jt].astype(str).str.lower().str.contains("driver", na=False)
-                mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower() == "nan") | (df_download[c_flsa].astype(str).str.strip() == "")
-                
-                for idx in df_download[mask_job_driver & mask_flsa_blank].index:
-                    old_f = df_download.at[idx, c_flsa]
-                    df_download.at[idx, c_flsa] = "Non-Exempt"
-                    log_change(idx, "FLSA Classification (Smart Driver)", old_f, "Non-Exempt", "Automatic Non-Exempt status for Driver roles.")
-                
-                # 3. New: Check if Job is Driver and Pay Type is blank
-                c_pt = resolved_field_map.get('Pay Type')
-                if c_pt and c_pt in df_download.columns:
-                    mask_pt_blank = df_download[c_pt].isna() | (df_download[c_pt].astype(str).str.strip().str.lower() == "nan") | (df_download[c_pt].astype(str).str.strip() == "")
-                    for idx in df_download[mask_job_driver & mask_pt_blank].index:
-                        old_p = df_download.at[idx, c_pt]
-                        df_download.at[idx, c_pt] = "Hourly"
-                        log_change(idx, "Pay Type (Smart Driver)", old_p, "Hourly", "Automatic Hourly pay type for Driver roles.")
-
-        if fix_options.get('fix_blank_jt_to_driver'):
-            c_jt = resolved_field_map.get('Job Title')
-            c_flsa = resolved_field_map.get('FLSA Classification')
-            c_pt = resolved_field_map.get('Pay Type')
-            if c_jt and c_flsa and c_pt and c_jt in df_download.columns and c_flsa in df_download.columns and c_pt in df_download.columns:
-                jt_series = df_download[c_jt].astype(str).str.strip().str.lower()
-                flsa_series = df_download[c_flsa].astype(str).str.strip().str.lower()
-                pt_series = df_download[c_pt].astype(str).str.strip().str.lower()
-                mask_jt_blank = df_download[c_jt].isna() | (jt_series == "") | (jt_series == "nan")
-                mask_non_exempt = flsa_series.str.contains("non-exempt", na=False) | flsa_series.str.contains("non exempt", na=False)
-                mask_hourly = pt_series.str.contains("hourly", na=False)
-                for idx in df_download[mask_jt_blank & mask_non_exempt & mask_hourly].index:
-                    old_j = df_download.at[idx, c_jt]
-                    df_download.at[idx, c_jt] = "Driver"
-                    log_change(idx, "Job Title", old_j, "Driver", "Job Title was blank; defaulted to 'Driver' for Non-Exempt Hourly employee.")
-
-        if fix_options.get('fix_std_hours'):
-            c_sh = resolved_field_map.get('Working Hours')
-            c_pt = resolved_field_map.get('Pay Type')
-            if c_sh and c_sh in df_download.columns:
-                if c_pt and c_pt in df_download.columns:
-                    pt_lower = df_download[c_pt].astype(str).str.lower().str.strip()
-                    mask_hourly = pt_lower.str.contains('hour', na=False)
-                    for idx in df_download[mask_hourly].index:
-                        old_v = str(df_download.at[idx, c_sh]).strip()
-                        if old_v not in ["0", "0.0", ""]:
-                            df_download.at[idx, c_sh] = "0"
-                            log_change(idx, "Working Hours", old_v, "0", "Forced zero hours for Hourly employee.")
-                        else:
-                            df_download.at[idx, c_sh] = "0"
-                else:
-                    mask_sh = df_download[c_sh].isna() | (df_download[c_sh].astype(str).str.strip().str.lower() == "nan") | (df_download[c_sh].astype(str).str.strip() == "")
-                    df_download.loc[mask_sh, c_sh] = "0"
-
-
-        if fix_options.get('rename_zip_col'):
-            c_zip = resolved_field_map.get('Zip')
-            if c_zip and c_zip in norm_to_orig:
-                norm_to_orig[c_zip] = "Primary Address: Zip Code"
-
-        if fix_options.get('replace_gender_col'):
-            sex_col = norm_colname("Sex")
-            c_gender = resolved_field_map.get('Gender')
-            if sex_col in df_download.columns:
-                if c_gender and c_gender in df_download.columns and c_gender != sex_col:
-                    df_download = df_download.drop(columns=[c_gender])
-                norm_to_orig[sex_col] = "Gender / Sex (Self-ID)"
-
-        if fix_options.get('fix_zip'):
-            c_zip = resolved_field_map.get('Zip')
-            c_mzip = resolved_field_map.get('Mailing Zip')
-            for cz in [c_zip, c_mzip]:
-                if cz and cz in df_download.columns:
-                    def _fix_zip_local(z):
-                        if pd.isna(z) or str(z).strip() == "": return ""
-                        import re
-                        s = str(z).split('.')[0].split('-')[0]
-                        s = re.sub(r'[^0-9]', '', s)
-                        if not s: return ""
-                        if len(s) == 4: s = '0' + s
-                        return s[:5]
+        if st.session_state.get(show_key):
+            # We use session state to cache the data so it doesn't re-run the logic on every download click
+            data_key = "adp_sanity_cached_files"
+            if data_key not in st.session_state:
+                with st.spinner("Preparing downloads..."):
+                    df_download = df_adp.copy()
                     
-                    orig_zips = df_download[cz].copy()
-                    df_download[cz] = df_download[cz].apply(_fix_zip_local).astype(str)
+                    # --- Collect Audit Info ---
+                    audit_trail = []
+                    emp_id_col = resolved_field_map.get('Employee ID')
+                    emp_name_col = next((c for c in df_download.columns if 'name' in str(c).lower()), None)
                     
-                    # Log ZIP changes
-                    for idx in df_download.index:
-                        if str(df_download.at[idx, cz]) != str(orig_zips.at[idx]):
-                            log_change(idx, cz, orig_zips.at[idx], df_download.at[idx, cz], "Standardized zip code format.")
+                    def get_row_name(row_idx):
+                        if emp_name_col: return str(df_download.at[row_idx, emp_name_col]).strip()
+                        return "N/A"
+                    
+                    def log_change(row_idx, field, old_val, new_val, comment):
+                        eid = str(df_download.at[row_idx, emp_id_col]) if emp_id_col else "N/A"
+                        audit_trail.append({
+                            'Employee ID': eid,
+                            'Employee Name': get_row_name(row_idx),
+                            'Field Changed': field,
+                            'Old Value': str(old_val) if pd.notna(old_val) else "(blank)",
+                            'Assumed Value': str(new_val),
+                            'Comments': comment
+                        })
+                    
+                    # Apply Fixes
+                    if fix_options.get('fix_emails'):
+                        c_work = resolved_field_map.get('Work Email')
+                        c_pers = resolved_field_map.get('Personal Email')
+                        if c_work and c_pers and c_work in df_download.columns and c_pers in df_download.columns:
+                            mask = df_download[c_work].isna() | (df_download[c_work].astype(str).str.strip() == "")
+                            for idx in df_download[mask].index:
+                                old_e = df_download.at[idx, c_work]
+                                new_e = df_download.at[idx, c_pers]
+                                if pd.notna(new_e) and str(new_e).strip():
+                                    df_download.at[idx, c_work] = new_e
+                                    log_change(idx, "Work Email", old_e, new_e, "Personal email used as fallback for missing work email.")
 
-        # Apply Mappings to download file
-        if src_loc_col and src_loc_col in df_download.columns:
-            df_download[src_loc_col] = df_download[src_loc_col].astype(str).str.strip().map(lambda x: loc_dict.get(x, x))
+                    if fix_options.get('fix_leave_to_active'):
+                        c_pos = resolved_field_map.get('Employment Status')
+                        c_term = resolved_field_map.get('Termination Date')
+                        if c_pos and c_term and c_pos in df_download.columns and c_term in df_download.columns:
+                            pos_series = df_download[c_pos].astype(str).str.strip().str.lower()
+                            term_series = df_download[c_term].astype(str).str.strip().str.lower()
+                            mask_leave = pos_series == "leave"
+                            mask_term_blank = df_download[c_term].isna() | (term_series == "") | (term_series == "nan")
+                            for idx in df_download[mask_leave & mask_term_blank].index:
+                                old_p = df_download.at[idx, c_pos]
+                                df_download.at[idx, c_pos] = "Active"
+                                log_change(idx, "Position Status", old_p, "Active", "Reclassified 'Leave' to 'Active' because Termination Date is blank.")
 
-        # Standardize ALL Date Columns to MM/DD/YYYY
-        date_cols = [
-            resolved_field_map.get('Hire Date'),          # Hire/Rehire Date
-            resolved_field_map.get('Original Hire Date'), # Hire Date
-            resolved_field_map.get('Termination Date'),   # Termination Date
-            resolved_field_map.get('DOB'),                # Birth Date
-        ]
-        date_cols = [c for c in date_cols if c is not None]
-        df_download = format_datetime_strings(df_download, date_cols)
+                    if fix_options.get('fix_dol_status'):
+                        c_dol = resolved_field_map.get('Employment Type')
+                        if c_dol and c_dol in df_download.columns:
+                            mask_blank = df_download[c_dol].isna() | (df_download[c_dol].astype(str).str.strip().str.lower() == "nan") | (df_download[c_dol].astype(str).str.strip() == "")
+                            for idx in df_download[mask_blank].index:
+                                old_d = df_download.at[idx, c_dol]
+                                df_download.at[idx, c_dol] = "Full Time"
+                                log_change(idx, "Employment Type", old_d, "Full Time", "Defaulted blank value to 'Full Time' for active employee.")
 
-        if sort_by_manager and col_sup_code and col_sup_code in df_download.columns:
-            emp_id_col = resolved_field_map.get('Employee ID')
-            if emp_id_col and emp_id_col in df_download.columns:
-                # Count reportees for each manager ID
-                sup_counts = df_download[df_download[col_sup_code].notna()][col_sup_code].value_counts().to_dict()
-                
-                # 1. Primary Sort Key: Reportee Count (Managers with most reportees first)
-                df_download['__mgr_count'] = df_download[emp_id_col].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
-                
-                # 2. Secondary Sort Key: Manager's ID (to keep reportees under their specific manager)
-                # We want the manager to be at the top of their group, followed by reportees.
-                # So we map each employee to THEIR supervisor's count.
-                df_download['__group_count'] = df_download[col_sup_code].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
-                
-                # Sort: 
-                # Highest Manager Count -> Descending
-                # Group Count -> Descending (to keep reportees near their high-count managers)
-                df_download = df_download.sort_values(by=['__mgr_count', '__group_count'], ascending=[False, False])
-                df_download = df_download.drop(columns=['__mgr_count', '__group_count'])
+                    if fix_options.get('fix_job_title'):
+                        c_job = resolved_field_map.get('Job Title')
+                        c_dep = resolved_field_map.get('Department')
+                        if c_job and c_dep and c_job in df_download.columns and c_dep in df_download.columns:
+                            mask = df_download[c_job].isna() | (df_download[c_job].astype(str).str.strip().str.lower() == "nan") | (df_download[c_job].astype(str).str.strip() == "")
+                            for idx in df_download[mask].index:
+                                old_val = df_download.at[idx, c_job]
+                                new_val = df_download.at[idx, c_dep]
+                                if pd.notna(new_val) and str(new_val).strip():
+                                    df_download.at[idx, c_job] = new_val
+                                    log_change(idx, "Job Title", old_val, new_val, "Position was blank; filled using Department Description.")
 
-        # --- New: Apply Strict Column Sequencing (Original Headers preserved) ---
-        priority_keys = [
-            'Employee ID', 'First Name', 'Last Name', 'Reports To ID',
-            'Employment Type', 'Pay Type', 'Work Location', 'Workers Comp Code',
-            'FLSA Classification', 'Employment Status', 'Job Title', 'Department'
-        ]
-        
-        final_col_order = []
-        renaming_dict = {}
-        used_orig_cols = set()
-        
+                    if fix_options.get('fix_flsa'):
+                        c_flsa = resolved_field_map.get('FLSA Classification')
+                        c_pt = resolved_field_map.get('Pay Type')
+                        if c_flsa and c_pt and c_flsa in df_download.columns and c_pt in df_download.columns:
+                            mask_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower() == "nan") | (df_download[c_flsa].astype(str).str.strip() == "")
+                            for idx in df_download[mask_blank].index:
+                                pt_val = str(df_download.at[idx, c_pt]).lower().strip()
+                                old_f = df_download.at[idx, c_flsa]
+                                if 'hourly' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Non-Exempt"
+                                    log_change(idx, "FLSA Status", old_f, "Non-Exempt", "Applied based on Hourly pay type.")
+                                elif 'salaried' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Exempt"
+                                    log_change(idx, "FLSA Status", old_f, "Exempt", "Applied based on Salaried pay type.")
 
+                    if fix_options.get('fix_driver_smart'):
+                        c_jt = resolved_field_map.get('Job Title')
+                        c_dept = resolved_field_map.get('Department')
+                        c_flsa = resolved_field_map.get('FLSA Classification')
+                        if c_jt and c_dept and c_flsa and c_jt in df_download.columns and c_dept in df_download.columns and c_flsa in df_download.columns:
+                            mask_jt_blank = df_download[c_jt].isna() | (df_download[c_jt].astype(str).str.strip().str.lower() == "nan") | (df_download[c_jt].astype(str).str.strip() == "")
+                            mask_dept_driver = df_download[c_dept].astype(str).str.lower().str.contains("driver", na=False)
+                            for idx in df_download[mask_jt_blank & mask_dept_driver].index:
+                                old_j = df_download.at[idx, c_jt]
+                                new_j = df_download.at[idx, c_dept]
+                                df_download.at[idx, c_jt] = new_j
+                                log_change(idx, "Job Title (Smart Driver)", old_j, new_j, "Automatically assigned 'Driver' title from Department.")
+                            
+                            mask_job_driver = df_download[c_jt].astype(str).str.lower().str.contains("driver", na=False)
+                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower() == "nan") | (df_download[c_flsa].astype(str).str.strip() == "")
+                            for idx in df_download[mask_job_driver & mask_flsa_blank].index:
+                                old_f = df_download.at[idx, c_flsa]
+                                df_download.at[idx, c_flsa] = "Non-Exempt"
+                                log_change(idx, "FLSA Classification (Smart Driver)", old_f, "Non-Exempt", "Automatic Non-Exempt status for Driver roles.")
+                            
+                            c_pt = resolved_field_map.get('Pay Type')
+                            if c_pt and c_pt in df_download.columns:
+                                mask_pt_blank = df_download[c_pt].isna() | (df_download[c_pt].astype(str).str.strip().str.lower() == "nan") | (df_download[c_pt].astype(str).str.strip() == "")
+                                for idx in df_download[mask_job_driver & mask_pt_blank].index:
+                                    old_p = df_download.at[idx, c_pt]
+                                    df_download.at[idx, c_pt] = "Hourly"
+                                    log_change(idx, "Pay Type (Smart Driver)", old_p, "Hourly", "Automatic Hourly pay type for Driver roles.")
+
+                    if fix_options.get('fix_blank_jt_to_driver'):
+                        c_jt = resolved_field_map.get('Job Title')
+                        c_flsa = resolved_field_map.get('FLSA Classification')
+                        c_pt = resolved_field_map.get('Pay Type')
+                        if c_jt and c_flsa and c_pt and c_jt in df_download.columns and c_flsa in df_download.columns and c_pt in df_download.columns:
+                            jt_series = df_download[c_jt].astype(str).str.strip().str.lower()
+                            flsa_series = df_download[c_flsa].astype(str).str.strip().str.lower()
+                            pt_series = df_download[c_pt].astype(str).str.strip().str.lower()
+                            mask_jt_blank = df_download[c_jt].isna() | (jt_series == "") | (jt_series == "nan")
+                            mask_non_exempt = flsa_series.str.contains("non-exempt", na=False) | flsa_series.str.contains("non exempt", na=False)
+                            mask_hourly = pt_series.str.contains("hourly", na=False)
+                            for idx in df_download[mask_jt_blank & mask_non_exempt & mask_hourly].index:
+                                old_j = df_download.at[idx, c_jt]
+                                df_download.at[idx, c_jt] = "Driver"
+                                log_change(idx, "Job Title", old_j, "Driver", "Job Title was blank; defaulted to 'Driver' for Non-Exempt Hourly employee.")
+
+                    if fix_options.get('fix_std_hours'):
+                        c_sh = resolved_field_map.get('Working Hours')
+                        c_pt = resolved_field_map.get('Pay Type')
+                        if c_sh and c_sh in df_download.columns:
+                            if c_pt and c_pt in df_download.columns:
+                                pt_lower = df_download[c_pt].astype(str).str.lower().str.strip()
+                                mask_hourly = pt_lower.str.contains('hour', na=False)
+                                for idx in df_download[mask_hourly].index:
+                                    old_v = str(df_download.at[idx, c_sh]).strip()
+                                    if old_v not in ["0", "0.0", ""]:
+                                        df_download.at[idx, c_sh] = "0"
+                                        log_change(idx, "Working Hours", old_v, "0", "Forced zero hours for Hourly employee.")
+                                    else:
+                                        df_download.at[idx, c_sh] = "0"
+                            else:
+                                mask_sh = df_download[c_sh].isna() | (df_download[c_sh].astype(str).str.strip().str.lower() == "nan") | (df_download[c_sh].astype(str).str.strip() == "")
+                                df_download.loc[mask_sh, c_sh] = "0"
+
+                    if fix_options.get('rename_zip_col'):
+                        c_zip = resolved_field_map.get('Zip')
+                        if c_zip and c_zip in norm_to_orig:
+                            norm_to_orig[c_zip] = "Primary Address: Zip Code"
+
+                    if fix_options.get('replace_gender_col'):
+                        sex_col = norm_colname("Sex")
+                        c_gender = resolved_field_map.get('Gender')
+                        if sex_col in df_download.columns:
+                            if c_gender and c_gender in df_download.columns and c_gender != sex_col:
+                                df_download = df_download.drop(columns=[c_gender])
+                            norm_to_orig[sex_col] = "Gender / Sex (Self-ID)"
+
+                    if fix_options.get('fix_zip'):
+                        c_zip = resolved_field_map.get('Zip')
+                        c_mzip = resolved_field_map.get('Mailing Zip')
+                        for cz in [c_zip, c_mzip]:
+                            if cz and cz in df_download.columns:
+                                def _fix_zip_local(z):
+                                    if pd.isna(z) or str(z).strip() == "": return ""
+                                    import re
+                                    s = str(z).split('.')[0].split('-')[0]
+                                    s = re.sub(r'[^0-9]', '', s)
+                                    if not s: return ""
+                                    if len(s) == 4: s = '0' + s
+                                    return s[:5]
+                                orig_zips = df_download[cz].copy()
+                                df_download[cz] = df_download[cz].apply(_fix_zip_local).astype(str)
+                                for idx in df_download.index:
+                                    if str(df_download.at[idx, cz]) != str(orig_zips.at[idx]):
+                                        log_change(idx, cz, orig_zips.at[idx], df_download.at[idx, cz], "Standardized zip code format.")
+
+                    # Fix Work Locations
+                    if src_loc_col and src_loc_col in df_download.columns:
+                        # 1. Fill blanks with user default if provided
+                        dwl = st.session_state.get("adp_sanity_default_loc_input", "").strip()
+                        if dwl:
+                            mask_blank = df_download[src_loc_col].isna() | (df_download[src_loc_col].astype(str).str.strip().str.lower().isin(["nan", ""]))
+                            for idx in df_download[mask_blank].index:
+                                old_val = df_download.at[idx, src_loc_col]
+                                df_download.at[idx, src_loc_col] = dwl
+                                log_change(idx, "Work Location", old_val, dwl, "Filled blank location with user-provided default.")
+                        
+                        # 2. Apply mapping from data editor
+                        df_download[src_loc_col] = df_download[src_loc_col].astype(str).str.strip().map(lambda x: loc_dict.get(x, x))
+
+                    date_cols = [resolved_field_map.get('Hire Date'), resolved_field_map.get('Original Hire Date'), resolved_field_map.get('Termination Date'), resolved_field_map.get('DOB')]
+                    date_cols = [c for c in date_cols if c is not None]
+                    df_download = format_datetime_strings(df_download, date_cols)
+
+                    if sort_by_manager and col_sup_code and col_sup_code in df_download.columns:
+                        emp_id_col = resolved_field_map.get('Employee ID')
+                        if emp_id_col and emp_id_col in df_download.columns:
+                            sup_counts = df_download[df_download[col_sup_code].notna()][col_sup_code].value_counts().to_dict()
+                            df_download['__mgr_count'] = df_download[emp_id_col].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
+                            df_download['__group_count'] = df_download[col_sup_code].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
+                            df_download = df_download.sort_values(by=['__mgr_count', '__group_count'], ascending=[False, False])
+                            df_download = df_download.drop(columns=['__mgr_count', '__group_count'])
+
+                    priority_keys = ['Employee ID', 'First Name', 'Last Name', 'Reports To ID', 'Employment Type', 'Pay Type', 'Work Location', 'Workers Comp Code', 'FLSA Classification', 'Employment Status', 'Job Title', 'Department']
+                    final_col_order = []
+                    renaming_dict = {}
+                    used_orig_cols = set()
+                    for norm_key in priority_keys:
+                        orig_col_norm = resolved_field_map.get(norm_key)
+                        if orig_col_norm and orig_col_norm in df_download.columns:
+                            final_col_order.append(orig_col_norm)
+                            original_label = norm_to_orig.get(orig_col_norm, orig_col_norm)
+                            renaming_dict[orig_col_norm] = original_label
+                            used_orig_cols.add(orig_col_norm)
+                    for col in df_download.columns:
+                        if col not in used_orig_cols:
+                            final_col_order.append(col)
+                            original_label = norm_to_orig.get(col, col)
+                            if original_label != col:
+                                renaming_dict[col] = original_label
+
+                    df_download = df_download[final_col_order].rename(columns=renaming_dict)
+                    from utils.audit_utils import generate_excel_with_audit
+                    st.session_state[data_key] = {
+                        "xlsx": generate_excel_with_audit(df_download, pd.DataFrame(audit_trail)),
+                        "csv": df_download.to_csv(index=False).encode("utf-8"),
+                        "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8")
+                    }
+
+            stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
+            cached = st.session_state.get(data_key, {})
+            col_dl1, col_dl2, col_dl3 = st.columns(3)
+            with col_dl1:
+                st.download_button("📥 Download Corrected Source (XLSX)", cached.get("xlsx", b""), f"ADP_Cleaned_{stamp}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="adp_sanity_dl_xlsx")
+            with col_dl2:
+                st.download_button("📥 Download Corrected Source (CSV)", cached.get("csv", b""), f"ADP_Cleaned_{stamp}.csv", "text/csv", key="adp_sanity_dl_csv")
+            with col_dl3:
+                st.download_button("📜 Download Change Log (CSV)", cached.get("audit", b""), f"ADP_Change_Log_{stamp}.csv", "text/csv", key="adp_sanity_dl_audit")
             
-        # 1. Add Priority Columns in exact order (Using original labels)
-        for norm_key in priority_keys:
-            orig_col_norm = resolved_field_map.get(norm_key)
-            if orig_col_norm and orig_col_norm in df_download.columns:
-                final_col_order.append(orig_col_norm)
-                # Restore EXACT original header from source
-                original_label = norm_to_orig.get(orig_col_norm, orig_col_norm)
-                renaming_dict[orig_col_norm] = original_label
-                used_orig_cols.add(orig_col_norm)
-        
-        # 2. Append all other original columns that weren't in the priority list
-        for col in df_download.columns:
-            if col not in used_orig_cols:
-                final_col_order.append(col)
-                # Ensure even non-priority columns map back to their original source names
-                original_label = norm_to_orig.get(col, col)
-                if original_label != col:
-                    renaming_dict[col] = original_label
-
-        # Reorder and Rename back to source headers
-        df_download = df_download[final_col_order]
-        df_download = df_download.rename(columns=renaming_dict)
-
-        from utils.audit_utils import generate_excel_with_audit
-        excel_data = generate_excel_with_audit(df_download, pd.DataFrame(audit_trail))
-        stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
-        col_dl1, col_dl2, col_dl3 = st.columns(3)
-        with col_dl1:
-            st.download_button(
-                "📥 Download Corrected Source (XLSX)",
-                excel_data,
-                f"ADP_Cleaned_{stamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="adp_sanity_dl_xlsx",
-            )
-        with col_dl2:
-            st.download_button(
-                "📥 Download Corrected Source (CSV)",
-                df_download.to_csv(index=False).encode("utf-8"),
-                f"ADP_Cleaned_{stamp}.csv",
-                mime="text/csv",
-                key="adp_sanity_dl_csv",
-                help="Single-sheet CSV of the cleaned census data.",
-            )
-        with col_dl3:
-            df_audit = pd.DataFrame(audit_trail)
-            st.download_button(
-                "📜 Download Change Log (CSV)",
-                df_audit.to_csv(index=False).encode("utf-8"),
-                f"ADP_Change_Log_{stamp}.csv",
-                mime="text/csv",
-                key="adp_sanity_dl_audit",
-                help="Download the audit trail showing all automated corrections made to the file.",
-            )
+            st.info("The Change Log is a separate audit trail showing all automated corrections made to the file.")
 
     # --- Job Title Mapping Section ---
     from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
