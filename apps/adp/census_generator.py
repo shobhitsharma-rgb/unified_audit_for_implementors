@@ -114,39 +114,21 @@ def preprocess_adp_file(adp_file):
     return df_adp, original_columns, norm_to_orig, resolved_field_map
 
 def render_auto_fix_options(key_prefix):
-    """Shared auto-correction options UI."""
-    st.markdown("### 🛠️ **Auto-Correction Options (Manual Consent Required)**")
-    st.markdown("Select which automated fixes you would like to apply.")
-    
-    col_fix1, col_fix2 = st.columns(2)
-    with col_fix1:
-        fix_status = st.checkbox("Auto-Map Employment Status (e.g. Inactive -> Terminated)", value=False, key=f"{key_prefix}_fix_status")
-        fix_type = st.checkbox("Auto-Map Worker Category (e.g. Intern -> Part Time)", value=False, key=f"{key_prefix}_fix_type")
-        fix_leave_to_active = st.checkbox("Reclassify 'Leave' to 'Active' when Termination Date is blank", value=False, key=f"{key_prefix}_fix_leave_to_active", help="If Position Status = 'Leave' but Termination Date is empty, set Position Status to 'Active'.")
-
-    with col_fix2:
-        # Standard Hours fixes (ADP Only usually)
-        if "adp" in key_prefix:
-            fix_zip = st.checkbox("Auto-Fix Zip Code (Pad 4-digits & trim to 5-digits)", value=False, key=f"{key_prefix}_fix_zip")
-            rename_zip_col = st.checkbox("Rename 'Primary Address: Zip / Postal Code' to 'Primary Address: Zip Code'", value=False, key=f"{key_prefix}_rename_zip_col", help="Renames the source 'Primary Address: Zip / Postal Code' header to 'Primary Address: Zip Code' in the downloaded file. Cell values are not changed.")
-            replace_gender_col = st.checkbox("Replace 'Gender / Sex (Self-ID)' with the 'Sex' column", value=False, key=f"{key_prefix}_replace_gender_col", help="Drops the existing 'Gender / Sex (Self-ID)' column and renames the 'Sex' column to 'Gender / Sex (Self-ID)' so the populated Male/Female values land under the canonical Uzio header.")
-        else:
-            fix_zip, rename_zip_col, replace_gender_col = False, False, False
-
+    """All corrections are applied automatically — no user toggles needed."""
     return {
         'fix_flsa': True,
         'fix_emails': True,
         'fix_job_title': True,
-        'fix_status': fix_status,
-        'fix_inactive': fix_status,
-        'fix_type': fix_type,
+        'fix_status': True,
+        'fix_inactive': True,
+        'fix_type': True,
         'fix_dol_status': True,
         'fix_std_hours': True,
-        'fix_zip': fix_zip,
+        'fix_zip': True,
         'fix_driver_smart': True,
-        'fix_leave_to_active': fix_leave_to_active,
-        'rename_zip_col': rename_zip_col,
-        'replace_gender_col': replace_gender_col,
+        'fix_leave_to_active': True,
+        'rename_zip_col': True,
+        'replace_gender_col': True,
         'fix_blank_jt_to_driver': True
     }
 
@@ -207,16 +189,32 @@ def render_census_sanity_check():
         return
 
     has_managers, top_manager_id, top_manager_name, col_sup_code = get_manager_info(df_adp, resolved_field_map)
-    sort_by_manager = False
-    if has_managers and top_manager_id:
-        name_disp = f" ({top_manager_name})" if top_manager_name else ""
-        st.info(f"**Top Manager Detected:** Employee **{top_manager_id}**{name_disp}")
-        sort_by_manager = st.checkbox(
-            "Sort all reporting managers to the top of download file", 
-            value=True, 
-            key="adp_sanity_sort_mgr",
-            help="This feature automatically identifies managers (those with reportees) and clusters them at the top of your exported file, sorted by their total headcount. High-level leadership with the most reportees will appear first."
-        )
+    sort_by_manager = has_managers and top_manager_id is not None
+
+    # --- What This Tool Does (Informational) ---
+    with st.expander("ℹ️ What does this tool do automatically?", expanded=False):
+        st.markdown("""
+This tool automatically applies the following corrections to your ADP Census data when you download the **Corrected Source**:
+
+| Category | Auto-Fix Applied |
+|---|---|
+| **FLSA Alignment** | If FLSA is blank, sets Non-Exempt for Hourly and Exempt for Salaried employees |
+| **Smart Driver Correction** | Fills blank Job Title, FLSA, and Pay Type for Driver roles using Department data |
+| **Blank Job Title → Driver** | Defaults blank Job Titles to 'Driver' for Non-Exempt Hourly employees |
+| **Employment Status Mapping** | Maps non-standard statuses (e.g. Inactive → Terminated) |
+| **Worker Category Mapping** | Maps categories like Intern → Part Time |
+| **Leave → Active** | Reclassifies 'Leave' to 'Active' when Termination Date is blank |
+| **Email Fallback** | Uses Personal Email when Work Email is missing |
+| **Job Title Fallback** | Fills blank Job Title from Department Description |
+| **Employment Type Default** | Defaults blank Employment Type to Full Time |
+| **Working Hours** | Forces zero hours for Hourly employees |
+| **Zip Code Cleanup** | Pads 4-digit zips, trims to 5-digits, removes special characters |
+| **Zip Column Rename** | Renames 'Zip / Postal Code' → 'Zip Code' |
+| **Gender Column** | Replaces 'Gender / Sex (Self-ID)' with the 'Sex' column values |
+| **Manager Sorting** | Clusters managers at the top of the file by reportee count |
+| **Date Formatting** | Standardizes all dates to MM/DD/YYYY |
+        """)
+
     fix_options = render_auto_fix_options("adp_sanity")
     
     # --- MAPPING UI ---
