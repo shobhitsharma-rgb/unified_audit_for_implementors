@@ -369,11 +369,7 @@ This tool automatically applies the following corrections to your ADP Census dat
     if st.button("Download Corrected Source", type="primary"):
         df_download = df_adp.copy()
         
-        # --- Inject CRITICAL_WARNINGS for audit ---
-        # Map each employee ID to their issues from hard_errors
-        issue_map = hard_errors.groupby('Employee ID')['Issue'].apply(lambda issues: "; ".join(issues)).to_dict() if not hard_errors.empty else {}
-        df_download['CRITICAL_WARNINGS'] = df_download[resolved_field_map.get('Employee ID')].astype(str).str.strip().map(issue_map).fillna("")
-        
+        # --- Collect Audit Info ---
         audit_trail = []
         emp_id_col = resolved_field_map.get('Employee ID')
         emp_name_col = next((c for c in df_download.columns if 'name' in str(c).lower()), None)
@@ -603,9 +599,7 @@ This tool automatically applies the following corrections to your ADP Census dat
         renaming_dict = {}
         used_orig_cols = set()
         
-        # 0. Handle CRITICAL_WARNINGS
-        if 'CRITICAL_WARNINGS' in df_download.columns:
-            final_col_order.append('CRITICAL_WARNINGS')
+
             
         # 1. Add Priority Columns in exact order (Using original labels)
         for norm_key in priority_keys:
@@ -619,7 +613,7 @@ This tool automatically applies the following corrections to your ADP Census dat
         
         # 2. Append all other original columns that weren't in the priority list
         for col in df_download.columns:
-            if col not in used_orig_cols and col != 'CRITICAL_WARNINGS':
+            if col not in used_orig_cols:
                 final_col_order.append(col)
                 # Ensure even non-priority columns map back to their original source names
                 original_label = norm_to_orig.get(col, col)
@@ -633,8 +627,8 @@ This tool automatically applies the following corrections to your ADP Census dat
         from utils.audit_utils import generate_excel_with_audit
         excel_data = generate_excel_with_audit(df_download, pd.DataFrame(audit_trail))
         stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
-        dl1, dl2 = st.columns(2)
-        with dl1:
+        col_dl1, col_dl2, col_dl3 = st.columns(3)
+        with col_dl1:
             st.download_button(
                 "📥 Download Corrected Source (XLSX)",
                 excel_data,
@@ -642,14 +636,24 @@ This tool automatically applies the following corrections to your ADP Census dat
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="adp_sanity_dl_xlsx",
             )
-        with dl2:
+        with col_dl2:
             st.download_button(
                 "📥 Download Corrected Source (CSV)",
                 df_download.to_csv(index=False).encode("utf-8"),
                 f"ADP_Cleaned_{stamp}.csv",
                 mime="text/csv",
                 key="adp_sanity_dl_csv",
-                help="Single-sheet CSV of the cleaned census (the audit-trail tab from the XLSX is omitted).",
+                help="Single-sheet CSV of the cleaned census data.",
+            )
+        with col_dl3:
+            df_audit = pd.DataFrame(audit_trail)
+            st.download_button(
+                "📜 Download Change Log (CSV)",
+                df_audit.to_csv(index=False).encode("utf-8"),
+                f"ADP_Change_Log_{stamp}.csv",
+                mime="text/csv",
+                key="adp_sanity_dl_audit",
+                help="Download the audit trail showing all automated corrections made to the file.",
             )
 
     # --- Job Title Mapping Section ---
