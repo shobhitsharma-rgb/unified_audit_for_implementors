@@ -123,7 +123,7 @@ def render_auto_fix_options(key_prefix):
         fix_flsa = st.checkbox("Enforce FLSA/Pay Type alignment (e.g. Salaried = Exempt)", value=False, key=f"{key_prefix}_fix_flsa", help="If the 'FLSA' is blank, this will fill it automatically based on whether they are Hourly (sets to Non-Exempt) or Salaried (sets to Exempt). It will NEVER change an existing FLSA status.")
         fix_driver_smart = st.checkbox("Enable Smart Driver Correction (Dept/Job -> FLSA/Pay Type)", value=False, key=f"{key_prefix}_fix_driver_smart", help="Designed specifically for Drivers. If the Job, FLSA, or Pay Type is blank for a driver, it will fill them as: Job='Driver', FLSA='Non-Exempt', and Pay Type='Hourly'. It only fills missing info and won't overwrite your existing data.")
         fix_blank_jt_to_driver = st.checkbox("Auto-Fill blank Job Title to 'Driver' for Non-Exempt Hourly employees", value=False, key=f"{key_prefix}_fix_blank_jt_to_driver", help="If Job Title Description is blank AND the employee is Non-Exempt AND Hourly, set Job Title to 'Driver'. Only fills missing values — never overwrites an existing Job Title.")
-        fix_license = st.checkbox("Strict License Validation (Clear dates if number missing)", value=False, key=f"{key_prefix}_fix_license")
+
     with col_fix2:
         fix_status = st.checkbox("Auto-Map Employment Status (e.g. Inactive -> Terminated)", value=False, key=f"{key_prefix}_fix_status")
         fix_type = st.checkbox("Auto-Map Worker Category (e.g. Intern -> Part Time)", value=False, key=f"{key_prefix}_fix_type")
@@ -141,7 +141,6 @@ def render_auto_fix_options(key_prefix):
         'fix_flsa': fix_flsa,
         'fix_emails': True,
         'fix_job_title': True,
-        'fix_license': fix_license,
         'fix_status': fix_status,
         'fix_inactive': fix_status,
         'fix_type': fix_type,

@@ -9,7 +9,7 @@ The fix_options dict supports the same toggles surfaced in apps/adp/census_gener
 render_auto_fix_options. All toggles default to False if absent.
 
 Toggles mirrored:
-  fix_flsa, fix_emails, fix_job_title, fix_driver_smart, fix_license,
+  fix_flsa, fix_emails, fix_job_title, fix_driver_smart,
   fix_status, fix_inactive (alias of fix_status), fix_type, fix_dol_status,
   fix_leave_to_active, fix_blank_jt_to_driver,
   fix_std_hours, fix_zip, rename_zip_col, replace_gender_col
