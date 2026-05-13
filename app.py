@@ -36,7 +36,7 @@ platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom"])
 
 if platform == "ADP":
     st.sidebar.subheader("ADP Tools")
-    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="adp_nav")
+    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Selective Census Sync"], key="adp_nav")
     
     if adp_tool == "Census Sanity":
         from apps.adp.census_generator import render_census_sanity_check
@@ -44,10 +44,13 @@ if platform == "ADP":
     elif adp_tool == "Census Audit":
         from apps.adp.census_audit import render_ui
         render_ui()
+    elif adp_tool == "Selective Census Sync":
+        from apps.adp.census_generator import render_selective_census_generator
+        render_selective_census_generator()
 
 elif platform == "Paycom":
     st.sidebar.subheader("Paycom Tools")
-    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="paycom_nav")
+    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Selective Census Sync"], key="paycom_nav")
     
     if paycom_tool == "Census Sanity":
         from apps.paycom.census_generator import render_census_sanity_check
@@ -55,3 +58,6 @@ elif platform == "Paycom":
     elif paycom_tool == "Census Audit":
         from apps.paycom.census_audit import render_ui
         render_ui()
+    elif paycom_tool == "Selective Census Sync":
+        from apps.paycom.census_generator import render_selective_census_generator
+        render_selective_census_generator()
