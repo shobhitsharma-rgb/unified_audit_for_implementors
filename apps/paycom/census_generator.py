@@ -462,12 +462,14 @@ This tool automatically applies the following corrections to your Paycom Census 
                                 df_download.at[idx, c_work] = new_e
                                 log_change(idx, "Work Email", old_e, new_e, "Personal email used as fallback for missing work email.")
 
-                if fix_options.get('fix_dol_status') and col_dol:
-                    mask_blank_dol = df_download[col_dol].isna() | (df_download[col_dol].astype(str).str.strip() == "")
-                    for idx in df_download[mask_blank_dol].index:
-                        old_d = df_download.at[idx, col_dol]
-                        df_download.at[idx, col_dol] = "Full-Time"
-                        log_change(idx, "DOL Status", old_d, "Full-Time", "Defaulted blank value to 'Full-Time' for active employee.")
+                if fix_options.get('fix_dol_status'):
+                    c_dol = resolved_field_map.get('Employment Type')
+                    if c_dol and c_dol in df_download.columns:
+                        mask_blank_dol = df_download[c_dol].isna() | (df_download[c_dol].astype(str).str.strip() == "")
+                        for idx in df_download[mask_blank_dol].index:
+                            old_d = df_download.at[idx, c_dol]
+                            df_download.at[idx, c_dol] = "Full-Time"
+                            log_change(idx, "Employment Type", old_d, "Full-Time", "Defaulted blank value to 'Full-Time' for active employee.")
 
                 if fix_options.get('fix_std_hours'):
                     c_sh = resolved_field_map.get('Working Hours')
@@ -531,7 +533,7 @@ This tool automatically applies the following corrections to your Paycom Census 
                         sup_counts = df_download[df_download[col_sup_code].notna()][col_sup_code].value_counts().to_dict()
                         df_download['__mgr_count'] = df_download[emp_id_col].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
                         df_download['__group_count'] = df_download[col_sup_code].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
-                        df_download = df_paycom.sort_values(by=['__mgr_count', '__group_count'], ascending=[False, False])
+                        df_download = df_download.sort_values(by=['__mgr_count', '__group_count'], ascending=[False, False])
                         df_download = df_download.drop(columns=['__mgr_count', '__group_count'])
 
                 priority_keys = ['Employee ID', 'First Name', 'Last Name', 'Reports To ID', 'Employment Type', 'Pay Type', 'Work Location', 'Workers Comp Code', 'FLSA Classification', 'Employment Status', 'Job Title', 'Department']
