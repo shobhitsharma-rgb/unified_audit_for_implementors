@@ -577,14 +577,6 @@ This tool automatically applies the following corrections to your ADP Census dat
                         if old_v != "Fiancee":
                             df_download.at[idx, ec] = "Fiancee"
                             log_change(idx, ec, old_v, "Fiancee", "Standardized 'Fiancée' or similar to 'Fiancee' for system compatibility.")
-                    
-                    # Also strip remaining special characters from these fields as a safety measure
-                    def _strip_special(x):
-                        if pd.isna(x) or str(x).strip().lower() == "nan": return x
-                        import re
-                        return re.sub(r"[^A-Za-z0-9\s\-\']", "", str(x))
-                    
-                    df_download[ec] = df_download[ec].apply(_strip_special)
 
                 # Fix Work Locations
                 if src_loc_col and src_loc_col in df_download.columns:

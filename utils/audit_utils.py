@@ -781,9 +781,8 @@ def validate_source_data(df_source, resolved_field_map):
                     # We will log this as a correction later, but for now we skip the error
                     val = "Fiancee"
                 
-                # Relaxed check: Allow alphanumeric, spaces, hyphens, apostrophes, and common accents
-                # But since we are auto-fixing 'Fiancee', we can keep it relatively strict or allow é
-                if not re.match(r"^[A-Za-z0-9\s\-\'éáíóúñÉÁÍÓÚÑ]+$", val):
+                # Reverted to strict check: Allow alphanumeric, spaces, hyphens, and apostrophes only
+                if not re.match(r"^[A-Za-z0-9\s\-\']+$", val):
                     missing.append(f"Special characters in {ec} ('{val}')")
 
         if missing:
