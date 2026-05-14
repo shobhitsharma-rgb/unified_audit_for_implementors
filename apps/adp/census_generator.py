@@ -450,17 +450,29 @@ This tool automatically applies the following corrections to your ADP Census dat
                 if fix_options.get('fix_flsa'):
                     c_flsa = resolved_field_map.get('FLSA Classification')
                     c_pt = resolved_field_map.get('Pay Type')
-                    if c_flsa and c_pt and c_flsa in df_download.columns and c_pt in df_download.columns:
-                        mask_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower() == "nan") | (df_download[c_flsa].astype(str).str.strip() == "")
-                        for idx in df_download[mask_blank].index:
-                            pt_val = str(df_download.at[idx, c_pt]).lower().strip()
-                            old_f = df_download.at[idx, c_flsa]
-                            if 'hourly' in pt_val:
+                    c_jt = resolved_field_map.get('Job Title')
+                    if c_flsa and c_flsa in df_download.columns:
+                        # Priority 1: Drivers (Non-Exempt)
+                        if c_jt and c_jt in df_download.columns:
+                            mask_jt_driver = df_download[c_jt].astype(str).str.lower().str.contains("driver|helper", na=False)
+                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
+                            for idx in df_download[mask_jt_driver & mask_flsa_blank].index:
+                                old_f = df_download.at[idx, c_flsa]
                                 df_download.at[idx, c_flsa] = "Non-Exempt"
-                                log_change(idx, "FLSA Status", old_f, "Non-Exempt", "Applied based on Hourly pay type.")
-                            elif 'salaried' in pt_val:
-                                df_download.at[idx, c_flsa] = "Exempt"
-                                log_change(idx, "FLSA Status", old_f, "Exempt", "Applied based on Salaried pay type.")
+                                log_change(idx, "FLSA Status", old_f, "Non-Exempt", "Set Non-Exempt for Driver/Helper role.")
+
+                        # Priority 2 & 3: Pay Type Based
+                        if c_pt and c_pt in df_download.columns:
+                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
+                            for idx in df_download[mask_flsa_blank].index:
+                                pt_val = str(df_download.at[idx, c_pt]).lower().strip()
+                                old_f = df_download.at[idx, c_flsa]
+                                if 'hourly' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Non-Exempt"
+                                    log_change(idx, "FLSA Status", old_f, "Non-Exempt", "Set Non-Exempt based on Hourly pay type.")
+                                elif 'salary' in pt_val or 'salaried' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Exempt"
+                                    log_change(idx, "FLSA Status", old_f, "Exempt", "Set Exempt based on Salary/Salaried pay type.")
 
                 if fix_options.get('fix_driver_smart'):
                     c_jt = resolved_field_map.get('Job Title')

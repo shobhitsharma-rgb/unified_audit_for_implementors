@@ -462,14 +462,41 @@ This tool automatically applies the following corrections to your Paycom Census 
                                 df_download.at[idx, c_work] = new_e
                                 log_change(idx, "Work Email", old_e, new_e, "Personal email used as fallback for missing work email.")
 
+                if fix_options.get('fix_flsa'):
+                    c_flsa = resolved_field_map.get('FLSA Classification')
+                    c_pt = resolved_field_map.get('Pay Type')
+                    c_jt = resolved_field_map.get('Job Title')
+                    if c_flsa and c_flsa in df_download.columns:
+                        # Priority 1: Drivers (Non-Exempt)
+                        if c_jt and c_jt in df_download.columns:
+                            mask_jt_driver = df_download[c_jt].astype(str).str.lower().str.contains("driver|helper", na=False)
+                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
+                            for idx in df_download[mask_jt_driver & mask_flsa_blank].index:
+                                old_f = df_download.at[idx, c_flsa]
+                                df_download.at[idx, c_flsa] = "Non-Exempt"
+                                log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Set Non-Exempt for Driver/Helper role.")
+
+                        # Priority 2 & 3: Pay Type Based
+                        if c_pt and c_pt in df_download.columns:
+                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
+                            for idx in df_download[mask_flsa_blank].index:
+                                pt_val = str(df_download.at[idx, c_pt]).lower().strip()
+                                old_f = df_download.at[idx, c_flsa]
+                                if 'hourly' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Non-Exempt"
+                                    log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Set Non-Exempt based on Hourly pay type.")
+                                elif 'salary' in pt_val or 'salaried' in pt_val:
+                                    df_download.at[idx, c_flsa] = "Exempt"
+                                    log_change(idx, "FLSA Classification", old_f, "Exempt", "Set Exempt based on Salary/Salaried pay type.")
+
                 if fix_options.get('fix_dol_status'):
                     c_dol = resolved_field_map.get('Employment Type')
                     if c_dol and c_dol in df_download.columns:
-                        mask_blank_dol = df_download[c_dol].isna() | (df_download[c_dol].astype(str).str.strip() == "")
+                        mask_blank_dol = df_download[c_dol].isna() | (df_download[c_dol].astype(str).str.strip().str.lower().isin(["nan", ""]))
                         for idx in df_download[mask_blank_dol].index:
                             old_d = df_download.at[idx, c_dol]
-                            df_download.at[idx, c_dol] = "Full-Time"
-                            log_change(idx, "Employment Type", old_d, "Full-Time", "Defaulted blank value to 'Full-Time' for active employee.")
+                            df_download.at[idx, c_dol] = "Full Time"
+                            log_change(idx, "Employment Type", old_d, "Full Time", "Defaulted blank value to 'Full Time' for active employee.")
 
                 if fix_options.get('fix_std_hours'):
                     c_sh = resolved_field_map.get('Working Hours')
