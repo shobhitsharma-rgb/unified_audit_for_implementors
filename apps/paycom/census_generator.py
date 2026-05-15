@@ -129,7 +129,8 @@ def render_auto_fix_options(key_prefix):
         'fix_dol_status': True,
         'fix_std_hours': True,
         'fix_zip': True,
-        'fix_driver_smart': True
+        'fix_driver_smart': True,
+        'fix_leave_to_active': True
     }
 
 def get_manager_info(df_paycom, resolved_field_map):
@@ -461,6 +462,28 @@ This tool automatically applies the following corrections to your Paycom Census 
                             if pd.notna(new_e) and str(new_e).strip():
                                 df_download.at[idx, c_work] = new_e
                                 log_change(idx, "Work Email", old_e, new_e, "Personal email used as fallback for missing work email.")
+
+                if fix_options.get('fix_leave_to_active'):
+                    c_pos = resolved_field_map.get('Employment Status')
+                    c_term = resolved_field_map.get('Termination Date')
+                    if c_pos and c_term and c_pos in df_download.columns and c_term in df_download.columns:
+                        pos_series = df_download[c_pos].astype(str).str.strip().str.lower()
+                        term_series = df_download[c_term].astype(str).str.strip().str.lower()
+                        
+                        mask_leave = pos_series.str.contains('leave', na=False)
+                        mask_term_blank = df_download[c_term].isna() | (term_series == "") | (term_series == "nan")
+                        
+                        # Case A: On Leave & No Term Date -> Active (Exclude from Payroll)
+                        for idx in df_download[mask_leave & mask_term_blank].index:
+                            old_p = df_download.at[idx, c_pos]
+                            df_download.at[idx, c_pos] = "Active"
+                            log_change(idx, "Employment Status", old_p, "Active", "Excluded from payroll")
+                        
+                        # Case B: On Leave & HAS Term Date -> Terminated
+                        for idx in df_download[mask_leave & ~mask_term_blank].index:
+                            old_p = df_download.at[idx, c_pos]
+                            df_download.at[idx, c_pos] = "Terminated"
+                            log_change(idx, "Employment Status", old_p, "Terminated", "Converted 'Leave' to 'Terminated' due to presence of Termination Date.")
 
                 if fix_options.get('fix_flsa'):
                     c_flsa = resolved_field_map.get('FLSA Classification')

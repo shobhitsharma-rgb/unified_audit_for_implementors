@@ -614,6 +614,23 @@ def validate_source_data(df_source, resolved_field_map):
 
                 # B. Logic Check: Terminated/Inactive but missing Termination Date
                 is_term = status_lower in ['t', 'i'] or any(s in status_lower for s in ['terminated', 'inactive'])
+                is_leave = 'leave' in status_lower
+                
+                if is_leave:
+                    if term_date_col and term_date_col in df_source.columns:
+                        tdate = row.get(term_date_col)
+                        if pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan":
+                            # No term date -> Suggest Active and warn to exclude from payroll
+                            anomalies.append({
+                                'Employee ID': emp_ref,
+                                'Name': get_emp_name(row),
+                                'Issue': f"On Leave Employee ({status_val})",
+                                'Message': "Please make them excluded from payroll on Uzio"
+                            })
+                        else:
+                            # Has term date -> Should be terminated
+                            pass
+
                 if is_term:
                     if term_date_col and term_date_col in df_source.columns:
                         tdate = row.get(term_date_col)

@@ -419,12 +419,21 @@ This tool automatically applies the following corrections to your ADP Census dat
                     if c_pos and c_term and c_pos in df_download.columns and c_term in df_download.columns:
                         pos_series = df_download[c_pos].astype(str).str.strip().str.lower()
                         term_series = df_download[c_term].astype(str).str.strip().str.lower()
-                        mask_leave = pos_series == "leave"
+                        
+                        mask_leave = pos_series.str.contains('leave', na=False)
                         mask_term_blank = df_download[c_term].isna() | (term_series == "") | (term_series == "nan")
+                        
+                        # Case A: On Leave & No Term Date -> Active (Exclude from Payroll)
                         for idx in df_download[mask_leave & mask_term_blank].index:
                             old_p = df_download.at[idx, c_pos]
                             df_download.at[idx, c_pos] = "Active"
-                            log_change(idx, "Position Status", old_p, "Active", "Reclassified 'Leave' to 'Active' because Termination Date is blank.")
+                            log_change(idx, "Employment Status", old_p, "Active", "Excluded from payroll")
+                        
+                        # Case B: On Leave & HAS Term Date -> Terminated
+                        for idx in df_download[mask_leave & ~mask_term_blank].index:
+                            old_p = df_download.at[idx, c_pos]
+                            df_download.at[idx, c_pos] = "Terminated"
+                            log_change(idx, "Employment Status", old_p, "Terminated", "Converted 'Leave' to 'Terminated' due to presence of Termination Date.")
 
                 if fix_options.get('fix_dol_status'):
                     c_dol = resolved_field_map.get('Employment Type')
