@@ -612,11 +612,12 @@ def validate_source_data(df_source, resolved_field_map):
                 if not is_standard or status_lower in ['a04l', 'a08v']:
                     missing.append(f"Non-standard Status ({status_val})")
 
-                # B. Logic Check: Terminated/Inactive but missing Termination Date
-                is_term = status_lower in ['t', 'i'] or any(s in status_lower for s in ['terminated', 'inactive'])
+                # B. Logic Check: Terminated/Inactive/Leave vs Termination Date
+                is_term = status_lower in ['t'] or any(s in status_lower for s in ['terminated'])
+                is_inactive = status_lower in ['i'] or any(s in status_lower for s in ['inactive'])
                 is_leave = 'leave' in status_lower
                 
-                if is_leave:
+                if is_leave or is_inactive:
                     if term_date_col and term_date_col in df_source.columns:
                         tdate = row.get(term_date_col)
                         if pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan":
@@ -624,18 +625,15 @@ def validate_source_data(df_source, resolved_field_map):
                             anomalies.append({
                                 'Employee ID': emp_ref,
                                 'Name': get_emp_name(row),
-                                'Issue': f"On Leave Employee ({status_val})",
+                                'Issue': f"{status_val} Employee",
                                 'Message': "Please make them excluded from payroll on Uzio"
                             })
-                        else:
-                            # Has term date -> Should be terminated
-                            pass
-
+                
                 if is_term:
                     if term_date_col and term_date_col in df_source.columns:
                         tdate = row.get(term_date_col)
                         if pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan":
-                            missing.append("Terminated/Inactive but missing Termination Date")
+                            missing.append("Terminated but missing Termination Date")
         
         # 2. Blank Employment Type / DOL Status
         # Find DOL_Status column (it maps to Employment Type in Uzio)

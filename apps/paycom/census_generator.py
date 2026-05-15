@@ -470,20 +470,20 @@ This tool automatically applies the following corrections to your Paycom Census 
                         pos_series = df_download[c_pos].astype(str).str.strip().str.lower()
                         term_series = df_download[c_term].astype(str).str.strip().str.lower()
                         
-                        mask_leave = pos_series.str.contains('leave', na=False)
+                        mask_special = pos_series.str.contains('leave|inactive', na=False)
                         mask_term_blank = df_download[c_term].isna() | (term_series == "") | (term_series == "nan")
                         
-                        # Case A: On Leave & No Term Date -> Active (Exclude from Payroll)
-                        for idx in df_download[mask_leave & mask_term_blank].index:
+                        # Case A: Special Status & No Term Date -> Active (Exclude from Payroll)
+                        for idx in df_download[mask_special & mask_term_blank].index:
                             old_p = df_download.at[idx, c_pos]
                             df_download.at[idx, c_pos] = "Active"
-                            log_change(idx, "Employment Status", old_p, "Active", "Excluded from payroll")
+                            log_change(idx, "Employment Status", old_p, "Active", "Please make it exclude from payroll in Uzio")
                         
-                        # Case B: On Leave & HAS Term Date -> Terminated
-                        for idx in df_download[mask_leave & ~mask_term_blank].index:
+                        # Case B: Special Status & HAS Term Date -> Terminated
+                        for idx in df_download[mask_special & ~mask_term_blank].index:
                             old_p = df_download.at[idx, c_pos]
                             df_download.at[idx, c_pos] = "Terminated"
-                            log_change(idx, "Employment Status", old_p, "Terminated", "Converted 'Leave' to 'Terminated' due to presence of Termination Date.")
+                            log_change(idx, "Employment Status", old_p, "Terminated", "Converted to 'Terminated' due to presence of Termination Date.")
 
                 if fix_options.get('fix_flsa'):
                     c_flsa = resolved_field_map.get('FLSA Classification')
