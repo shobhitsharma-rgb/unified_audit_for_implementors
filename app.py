@@ -36,7 +36,7 @@ platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom", "Universal Tool
 
 if platform == "ADP":
     st.sidebar.subheader("ADP Tools")
-    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="adp_nav")
+    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Audit", "Emergency Audit", "License Audit"], key="adp_nav")
     
     if adp_tool == "Census Sanity":
         from apps.adp.census_generator import render_census_sanity_check
@@ -44,16 +44,31 @@ if platform == "ADP":
     elif adp_tool == "Census Audit":
         from apps.adp.census_audit import render_ui
         render_ui()
+    elif adp_tool == "Payment Audit":
+        from apps.adp.payment_audit import render_ui
+        render_ui()
+    elif adp_tool == "Emergency Audit":
+        from apps.adp.emergency_audit import render_ui
+        render_ui()
+    elif adp_tool == "License Audit":
+        from apps.adp.license_audit import render_ui
+        render_ui()
 
 elif platform == "Paycom":
     st.sidebar.subheader("Paycom Tools")
-    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit"], key="paycom_nav")
+    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Audit", "Emergency Audit"], key="paycom_nav")
 
     if paycom_tool == "Census Sanity":
         from apps.paycom.census_generator import render_census_sanity_check
         render_census_sanity_check()
     elif paycom_tool == "Census Audit":
         from apps.paycom.census_audit import render_ui
+        render_ui()
+    elif paycom_tool == "Payment Audit":
+        from apps.paycom.payment_audit import render_ui
+        render_ui()
+    elif paycom_tool == "Emergency Audit":
+        from apps.paycom.emergency_audit import render_ui
         render_ui()
 
 elif platform == "Universal Tools":
