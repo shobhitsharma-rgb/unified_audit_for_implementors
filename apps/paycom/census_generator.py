@@ -201,8 +201,10 @@ This tool automatically applies the following corrections to your Paycom Census 
 
 | Category | Auto-Fix Applied |
 |---|---|
-| **FLSA Alignment** | If FLSA is blank, sets Non-Exempt for Hourly and Exempt for Salaried employees |
-| **Smart Driver Correction** | Fills blank Job Title, FLSA, and Pay Type for Driver roles using Department data |
+| **FLSA — Driver Override** | If Job Title matches the hourly-only roster (Driver, Walker, Helper, Lead Driver, DDU Dedicated/Shared, Driver-Lite/Step Van/Unscheduled, Delivery Associate — whole-word match), forces Pay Type = Hourly and FLSA = Non-Exempt, overriding any source values |
+| **FLSA — Blanks-only Fill** | When source FLSA is **blank**: Salaried → Exempt, Hourly → Non-Exempt. Populated source FLSA values are **never overwritten** by Pay Type alone |
+| **FLSA — Cannot Determine** | When FLSA, Pay Type, and Job Title can't yield a classification, leaves FLSA blank and flags it on the Change Log for manual review |
+| **Smart Driver Correction** | Fills blank Job Title, FLSA, and Pay Type for Driver/Walker/Helper/DDU/Delivery Associate roles using Department data |
 | **Employment Status Mapping** | Maps non-standard statuses (e.g. Inactive → Terminated) |
 | **Worker Category Mapping** | Maps categories like Intern → Part Time |
 | **Email Fallback** | Uses Personal Email when Work Email is missing |
