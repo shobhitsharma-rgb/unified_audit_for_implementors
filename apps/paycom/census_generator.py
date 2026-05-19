@@ -1,7 +1,7 @@
 import io
 import pandas as pd
 import streamlit as st
-from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings
+from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
 from utils.ui_components import inject_premium_styles, render_premium_header, render_finding_card
 
 APP_TITLE = "Paycom to Uzio Census Template Generator"
@@ -492,27 +492,43 @@ This tool automatically applies the following corrections to your Paycom Census 
                     c_pt = resolved_field_map.get('Pay Type')
                     c_jt = resolved_field_map.get('Job Title')
                     if c_flsa and c_flsa in df_download.columns:
-                        # Priority 1: Drivers (Non-Exempt)
+                        # Rule 1 (always wins): Driver / hourly-only Job Title forces
+                        # Pay Type = Hourly + FLSA = Non-Exempt, overwriting source.
+                        mask_jt_driver = pd.Series(False, index=df_download.index)
                         if c_jt and c_jt in df_download.columns:
-                            mask_jt_driver = df_download[c_jt].astype(str).str.lower().str.contains("driver|helper", na=False)
-                            mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
-                            for idx in df_download[mask_jt_driver & mask_flsa_blank].index:
+                            mask_jt_driver = df_download[c_jt].apply(is_hourly_only_job_title)
+                            for idx in df_download[mask_jt_driver].index:
                                 old_f = df_download.at[idx, c_flsa]
-                                df_download.at[idx, c_flsa] = "Non-Exempt"
-                                log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Set Non-Exempt for Driver/Helper role.")
+                                cur_lower = str(old_f).strip().lower() if pd.notna(old_f) else ""
+                                if cur_lower != 'non-exempt':
+                                    df_download.at[idx, c_flsa] = "Non-Exempt"
+                                    log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Forced Non-Exempt for Driver/Hourly-only Position.")
+                            if c_pt and c_pt in df_download.columns:
+                                for idx in df_download[mask_jt_driver].index:
+                                    old_p = df_download.at[idx, c_pt]
+                                    cur_lower = str(old_p).strip().lower() if pd.notna(old_p) else ""
+                                    if cur_lower != 'hourly':
+                                        df_download.at[idx, c_pt] = "Hourly"
+                                        log_change(idx, "Pay Type", old_p, "Hourly", "Forced Hourly for Driver/Hourly-only Position.")
 
-                        # Priority 2 & 3: Pay Type Based
+                        # Rules 2–4 (non-Driver rows only, blanks only — never overwrite
+                        # a populated source FLSA value by Pay Type alone).
                         if c_pt and c_pt in df_download.columns:
                             mask_flsa_blank = df_download[c_flsa].isna() | (df_download[c_flsa].astype(str).str.strip().str.lower().isin(["nan", ""]))
-                            for idx in df_download[mask_flsa_blank].index:
+                            for idx in df_download[mask_flsa_blank & ~mask_jt_driver].index:
                                 pt_val = str(df_download.at[idx, c_pt]).lower().strip()
+                                pt_raw = str(df_download.at[idx, c_pt]).strip() if pd.notna(df_download.at[idx, c_pt]) else ""
                                 old_f = df_download.at[idx, c_flsa]
-                                if 'hourly' in pt_val:
+                                if 'hour' in pt_val:
                                     df_download.at[idx, c_flsa] = "Non-Exempt"
-                                    log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Set Non-Exempt based on Hourly pay type.")
-                                elif 'salary' in pt_val or 'salaried' in pt_val:
+                                    log_change(idx, "FLSA Classification", old_f, "Non-Exempt", "Filled blank FLSA based on Hourly Pay Type.")
+                                elif 'salar' in pt_val:
                                     df_download.at[idx, c_flsa] = "Exempt"
-                                    log_change(idx, "FLSA Classification", old_f, "Exempt", "Set Exempt based on Salary/Salaried pay type.")
+                                    log_change(idx, "FLSA Classification", old_f, "Exempt", "Filled blank FLSA based on Salaried Pay Type.")
+                                else:
+                                    # Rule 4: cannot determine — leave blank, flag for review.
+                                    log_change(idx, "FLSA Classification", old_f, "(Blank — Not Filled)",
+                                               f"Cannot derive FLSA — source FLSA is blank, Job Title is not in Driver/Hourly-only list, and Pay Type is '{pt_raw or '(Blank)'}'. Manual review required.")
 
                 if fix_options.get('fix_dol_status'):
                     c_dol = resolved_field_map.get('Employment Type')
