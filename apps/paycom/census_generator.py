@@ -130,6 +130,7 @@ def render_auto_fix_options(key_prefix):
         'fix_std_hours': True,
         'fix_zip': True,
         'fix_driver_smart': True,
+        'fix_blank_jt_to_driver': True,
         'fix_leave_to_active': True
     }
 
@@ -529,6 +530,22 @@ This tool automatically applies the following corrections to your Paycom Census 
                                     # Rule 4: cannot determine — leave blank, flag for review.
                                     log_change(idx, "FLSA Classification", old_f, "(Blank — Not Filled)",
                                                f"Cannot derive FLSA — source FLSA is blank, Job Title is not in Driver/Hourly-only list, and Pay Type is '{pt_raw or '(Blank)'}'. Manual review required.")
+
+                if fix_options.get('fix_blank_jt_to_driver'):
+                    c_jt = resolved_field_map.get('Job Title')
+                    c_flsa = resolved_field_map.get('FLSA Classification')
+                    c_pt = resolved_field_map.get('Pay Type')
+                    if c_jt and c_flsa and c_pt and c_jt in df_download.columns and c_flsa in df_download.columns and c_pt in df_download.columns:
+                        jt_series   = df_download[c_jt].astype(str).str.strip().str.lower()
+                        flsa_series = df_download[c_flsa].astype(str).str.strip().str.lower()
+                        pt_series   = df_download[c_pt].astype(str).str.strip().str.lower()
+                        mask_jt_blank   = df_download[c_jt].isna() | (jt_series == "") | (jt_series == "nan")
+                        mask_non_exempt = flsa_series.str.contains("non-exempt", na=False) | flsa_series.str.contains("non exempt", na=False)
+                        mask_hourly     = pt_series.str.contains("hourly", na=False)
+                        for idx in df_download[mask_jt_blank & mask_non_exempt & mask_hourly].index:
+                            old_j = df_download.at[idx, c_jt]
+                            df_download.at[idx, c_jt] = "Driver"
+                            log_change(idx, "Position", old_j, "Driver", "Position was blank; defaulted to 'Driver' for Non-Exempt Hourly employee.")
 
                 if fix_options.get('fix_dol_status'):
                     c_dol = resolved_field_map.get('Employment Type')
