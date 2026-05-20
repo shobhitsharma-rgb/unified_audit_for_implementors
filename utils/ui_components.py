@@ -145,6 +145,9 @@ def render_duplicate_column_error(dupes):
         "4. Save the file and upload it again here.\n\n"
         "The sanity check will start only after the duplicate columns are removed."
     )
+
+
+def _plain_english_issue(raw_issue):
     """Translate a raw validation issue string into plain English a non-payroll
     user can understand. Falls back to the raw text if no rule matches."""
     import re
