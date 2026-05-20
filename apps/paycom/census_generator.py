@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error
 
 APP_TITLE = "Paycom to Uzio Census Template Generator"
 
@@ -74,7 +74,7 @@ def preprocess_paycom_file(paycom_file):
     # --- CRITICAL ERROR: Duplicate Column Check ---
     dupes = check_duplicate_columns(paycom_file)
     if dupes:
-        st.error(f"Your file has duplicate column names: **{', '.join(dupes)}**. Please remove the duplicate columns and re-upload.")
+        render_duplicate_column_error(dupes)
         return None, None, None, None
 
     try:

@@ -124,7 +124,27 @@ def render_finding_card(title, data_dict, type='error'):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _plain_english_issue(raw_issue):
+def render_duplicate_column_error(dupes):
+    """Hard-stop error shown when an uploaded census file has repeated column
+    headers. Tells the user — in plain English — exactly which columns repeat,
+    what to do, and that nothing has been generated."""
+    st.markdown("""
+<div style="background:#fff5f5; border-left:5px solid #ba1a1a; border-radius:8px; padding:16px 20px; margin:8px 0 4px 0;">
+<h4 style="color:#93000a; margin:0 0 4px 0; border:none; padding:0;">⛔ This file can't be processed — it has repeated column names</h4>
+<p style="color:#46464f; margin:0; font-size:0.9rem;">The sanity check has been stopped. No census file has been generated.</p>
+</div>
+""", unsafe_allow_html=True)
+    dupe_list = "\n".join(f"- **{d}**" for d in dupes)
+    st.markdown(
+        f"The column name{'s' if len(dupes) != 1 else ''} below appear "
+        f"**more than once** in your file:\n\n{dupe_list}\n\n"
+        "A census file must have **every column name only once**. Please:\n\n"
+        "1. Open the file in Excel.\n"
+        "2. For each repeated name above, decide which copy of the column to keep.\n"
+        "3. **Delete the extra column(s)** so each name is left only once.\n"
+        "4. Save the file and upload it again here.\n\n"
+        "The sanity check will start only after the duplicate columns are removed."
+    )
     """Translate a raw validation issue string into plain English a non-payroll
     user can understand. Falls back to the raw text if no rule matches."""
     import re
