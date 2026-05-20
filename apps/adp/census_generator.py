@@ -210,6 +210,8 @@ When you click **Download Corrected Source**, the following corrections are appl
 | **Blank employment type** | Set to Full-Time |
 | **Working hours (all employees)** | Set to 0 for every employee — hourly and salaried, blank or filled |
 | **Zip codes** | Padded to 5 digits, trimmed if too long, special characters removed |
+| **Zip column header** | The "Zip / Postal Code" column header is renamed to "Zip Code" |
+| **Gender column** | The Gender column is populated from the "Sex" column's values |
 | **Manager ordering** | Managers moved to the top of the file |
 | **Dates** | All dates formatted as MM/DD/YYYY |
         """)
@@ -263,6 +265,7 @@ When you click **Download Corrected Source**, the following corrections are appl
     )
 
     st.info("ℹ️ **Working Hours will be set to 0 for every employee** in the corrected file — all employees, hourly and salaried, whether the source value is blank or already filled in.")
+    st.info("ℹ️ **Two columns will be standardized** in the corrected file: the **Zip / Postal Code** header is renamed to **Zip Code**, and the **Gender** column is populated from the **Sex** column.")
 
     # --- Persistent Download Section ---
     st.markdown("---")
