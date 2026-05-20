@@ -765,12 +765,9 @@ def validate_source_data(df_source, resolved_field_map):
                             'Pay Type': str(row.get(pay_type_col, '')).strip()
                         })
         
-        # 7. Blank Working Hours
-        if hours_col and hours_col in df_source.columns:
-            hrs_val = row.get(hours_col)
-            if pd.isna(hrs_val) or str(hrs_val).strip() == "" or str(hrs_val).strip().lower() == 'nan':
-                missing.append("Working Hours (blank)")
-        
+        # 7. Working Hours — no check. They are forced to 0 for every employee
+        # at download time, so a blank or non-zero source value is not an issue.
+
         # 8. State must be 2-character abbreviation (not full name)
         if state_col and state_col in df_source.columns:
             state_val = row.get(state_col)

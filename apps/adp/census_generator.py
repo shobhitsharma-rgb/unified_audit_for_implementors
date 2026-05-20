@@ -208,7 +208,7 @@ When you click **Download Corrected Source**, the following corrections are appl
 | **Missing work email** | Filled using personal email as a backup |
 | **Blank job title** | Filled using the department name |
 | **Blank employment type** | Set to Full-Time |
-| **Hourly employee scheduled hours** | Set to 0 (required by Uzio for hourly workers) |
+| **Working hours (all employees)** | Set to 0 for every employee — hourly and salaried, blank or filled |
 | **Zip codes** | Padded to 5 digits, trimmed if too long, special characters removed |
 | **Manager ordering** | Managers moved to the top of the file |
 | **Dates** | All dates formatted as MM/DD/YYYY |
@@ -261,6 +261,9 @@ When you click **Download Corrected Source**, the following corrections are appl
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
     )
+
+    st.info("ℹ️ **Working Hours will be set to 0 for every employee** in the corrected file — all employees, hourly and salaried, whether the source value is blank or already filled in.")
+
     # --- Persistent Download Section ---
     st.markdown("---")
     st.subheader("📥 Download Cleaned Results")
@@ -441,21 +444,14 @@ When you click **Download Corrected Source**, the following corrections are appl
 
                 if fix_options.get('fix_std_hours'):
                     c_sh = resolved_field_map.get('Working Hours')
-                    c_pt = resolved_field_map.get('Pay Type')
                     if c_sh and c_sh in df_download.columns:
-                        if c_pt and c_pt in df_download.columns:
-                            pt_lower = df_download[c_pt].astype(str).str.lower().str.strip()
-                            mask_hourly = pt_lower.str.contains('hour', na=False)
-                            for idx in df_download[mask_hourly].index:
-                                old_v = str(df_download.at[idx, c_sh]).strip()
-                                if old_v not in ["0", "0.0", ""]:
-                                    df_download.at[idx, c_sh] = "0"
-                                    log_change(idx, "Working Hours", old_v, "0", "Forced zero hours for Hourly employee.")
-                                else:
-                                    df_download.at[idx, c_sh] = "0"
-                        else:
-                            mask_sh = df_download[c_sh].isna() | (df_download[c_sh].astype(str).str.strip().str.lower() == "nan") | (df_download[c_sh].astype(str).str.strip() == "")
-                            df_download.loc[mask_sh, c_sh] = "0"
+                        # Working Hours are zeroed for EVERY employee — hourly and
+                        # salaried — regardless of the source value (blank or filled).
+                        for idx in df_download.index:
+                            old_v = str(df_download.at[idx, c_sh]).strip()
+                            df_download.at[idx, c_sh] = "0"
+                            if old_v.lower() not in ["0", "0.0", "", "nan"]:
+                                log_change(idx, "Working Hours", old_v, "0", "Working hours set to 0 for all employees.")
 
                 if fix_options.get('rename_zip_col'):
                     c_zip = resolved_field_map.get('Zip')

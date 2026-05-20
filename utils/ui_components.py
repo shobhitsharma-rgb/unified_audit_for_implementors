@@ -234,8 +234,6 @@ def _plain_english_issue(raw_issue):
         m = re.search(r"Job Title '([^']+)'", p)
         jt = f" ({m.group(1)})" if m else ""
         return f"Driver / Walker / Helper role{jt} is marked as salary — must be hourly pay"
-    if "Working Hours (blank)" in p:
-        return "Missing scheduled work hours"
     if "State" in p and "full name" in p:
         m = re.search(r"'([^']+)'", p)
         sv = f" (\"{m.group(1)}\")" if m else ""
