@@ -147,6 +147,56 @@ def render_duplicate_column_error(dupes):
     )
 
 
+# Census fields that MUST be present for the sanity check to run — keyed by the
+# standard field name used in ADP_FIELD_MAP / PAYCOM_FIELD_MAP. If any is absent
+# from an upload, the tool hard-stops (otherwise its checks are skipped silently).
+REQUIRED_CENSUS_FIELDS = [
+    'Employee ID', 'First Name', 'Last Name', 'SSN', 'DOB',
+    'Employment Status', 'Employment Type', 'Hire Date',
+    'Pay Type', 'FLSA Classification', 'Annual Salary', 'Working Hours',
+    'Job Title', 'Address Line 1', 'City', 'Zip', 'State',
+]
+
+_FIELD_FRIENDLY = {
+    'Employee ID': 'employee ID', 'First Name': 'first name',
+    'Last Name': 'last name', 'SSN': 'Social Security Number',
+    'DOB': 'date of birth', 'Employment Status': 'employment status (Active / Terminated)',
+    'Employment Type': 'employment type (Full-Time / Part-Time)',
+    'Hire Date': 'hire date', 'Pay Type': 'pay type (Hourly / Salary)',
+    'FLSA Classification': 'Exempt / Non-Exempt status',
+    'Annual Salary': 'annual salary', 'Working Hours': 'scheduled work hours',
+    'Job Title': 'job title', 'Address Line 1': 'street address',
+    'City': 'city', 'Zip': 'home zip code', 'State': 'state',
+}
+
+
+def render_missing_column_error(missing):
+    """Hard-stop error shown when an uploaded census file is missing required
+    columns. `missing` is a list of (expected_header, standard_field_name)."""
+    st.markdown("""
+<div style="background:#fff5f5; border-left:5px solid #ba1a1a; border-radius:8px; padding:16px 20px; margin:8px 0 4px 0;">
+<h4 style="color:#93000a; margin:0 0 4px 0; border:none; padding:0;">⛔ This file can't be processed — required columns are missing</h4>
+<p style="color:#46464f; margin:0; font-size:0.9rem;">The sanity check has been stopped. No census file has been generated.</p>
+</div>
+""", unsafe_allow_html=True)
+    rows = "\n".join(
+        f"- **{hdr}** — the {_FIELD_FRIENDLY.get(std, std)} column"
+        for hdr, std in missing
+    )
+    many = len(missing) != 1
+    st.markdown(
+        f"The Census Sanity Check needs the column{'s' if many else ''} below, "
+        f"but {'they were' if many else 'it was'} not found in your file:\n\n"
+        f"{rows}\n\n"
+        "Without these, important checks would be skipped without telling you. Please:\n\n"
+        "1. Open your census export.\n"
+        "2. Add the missing column(s), using the exact name(s) shown above.\n"
+        "3. Fill in the value for every employee.\n"
+        "4. Save the file and upload it again here.\n\n"
+        "The sanity check will start only after every required column is present."
+    )
+
+
 def _plain_english_issue(raw_issue):
     """Translate a raw validation issue string into plain English a non-payroll
     user can understand. Falls back to the raw text if no rule matches."""

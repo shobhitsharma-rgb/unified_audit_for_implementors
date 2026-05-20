@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, REQUIRED_CENSUS_FIELDS
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -98,6 +98,7 @@ def preprocess_adp_file(adp_file):
     
     # Resolve field map
     resolved_field_map = {}
+    missing_required = []
     for std_name, vendor_cols in ADP_FIELD_MAP.items():
         found = False
         for vc in vendor_cols:
@@ -108,7 +109,14 @@ def preprocess_adp_file(adp_file):
                 break
         if not found:
             resolved_field_map[std_name] = norm_colname(vendor_cols[0])
-            
+            if std_name in REQUIRED_CENSUS_FIELDS:
+                missing_required.append((vendor_cols[0], std_name))
+
+    # --- CRITICAL ERROR: Missing required columns ---
+    if missing_required:
+        render_missing_column_error(missing_required)
+        return None, None, None, None
+
     return df_adp, original_columns, norm_to_orig, resolved_field_map
 
 def render_auto_fix_options(key_prefix):
