@@ -214,8 +214,9 @@ def render_standardization_notice(include_column_renames=False):
         )
     bullets = "\n".join(f"- {it}" for it in items)
     st.info(
-        "ℹ️ **Every corrected file is also standardized.** The changes below apply "
-        "to all employees and are recorded in the Change Log of your download:\n\n"
+        "ℹ️ **Every corrected file is also standardized — no action needed.** "
+        "These changes are applied automatically to all employees and are recorded "
+        "in the Change Log of your download:\n\n"
         + bullets
     )
 

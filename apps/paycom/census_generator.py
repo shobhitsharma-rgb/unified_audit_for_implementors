@@ -268,12 +268,11 @@ When you click **Download Corrected Source**, the following corrections are appl
         position_blanks=position_blanks,
     )
 
-    render_standardization_notice(include_column_renames=False)
-
     # --- Persistent Download Section ---
     st.markdown("---")
     st.subheader("📥 Download Cleaned Results")
-    st.info("Click the button below to prepare and download the corrected census files.")
+    render_standardization_notice(include_column_renames=False)
+    st.caption("Click the button below to prepare and download the corrected census files.")
     show_key = f"pc_sanity_show_dl_v3"
     if st.button("Download Corrected Source", type="primary", key="pc_sanity_main_btn_v2"):
         st.session_state[show_key] = True
