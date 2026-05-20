@@ -247,38 +247,59 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         with st.expander("🔍 View the full list of affected employees", expanded=False):
             st.dataframe(hard_errors, hide_index=True, use_container_width=True)
 
-    # --- SECTION 2: FIXED AUTOMATICALLY ---
-    if has_auto:
-        fixes = []
-        if flsa_corrections is not None and not flsa_corrections.empty:
-            n = _n(flsa_corrections)
-            fixes.append(f"**Conflicting pay classification corrected** for {n} employee{'s' if n != 1 else ''} — e.g. hourly pay but marked Exempt. IDs: `{_ids_str(flsa_corrections)}`")
-        if flsa_blanks is not None and not flsa_blanks.empty:
-            n = _n(flsa_blanks)
-            fixes.append(f"**Missing pay classification filled in** for {n} employee{'s' if n != 1 else ''}, based on their pay type. IDs: `{_ids_str(flsa_blanks)}`")
-        if smart_driver_fixes is not None and not smart_driver_fixes.empty:
-            n = _n(smart_driver_fixes)
-            fixes.append(f"**Driver/Walker roles auto-completed** for {n} employee{'s' if n != 1 else ''} — missing job title or pay info filled from department data. IDs: `{_ids_str(smart_driver_fixes)}`")
-        if anomalies is not None and not anomalies.empty:
-            n = _n(anomalies)
-            fixes.append(f"**Unusual records flagged for review** — {n} employee{'s' if n != 1 else ''} with contradictory pay or status data. IDs: `{_ids_str(anomalies)}`")
-        if intern_corrections is not None and not intern_corrections.empty:
-            n = _n(intern_corrections)
-            fixes.append(f"**Intern employment type changed to Part-Time** for {n} employee{'s' if n != 1 else ''}. IDs: `{_ids_str(intern_corrections)}`")
-        if email_fallbacks is not None and not email_fallbacks.empty:
-            n = _n(email_fallbacks)
-            fixes.append(f"**Personal email used as work email** for {n} employee{'s' if n != 1 else ''} who had no work email on file. IDs: `{_ids_str(email_fallbacks)}`")
-        if position_blanks is not None and not position_blanks.empty:
-            n = _n(position_blanks)
-            fixes.append(f"**Job title filled from department name** for {n} employee{'s' if n != 1 else ''}. IDs: `{_ids_str(position_blanks)}`")
+    # --- SECTION 2: FIXED AUTOMATICALLY (no action needed) ---
+    fixes = []
+    if flsa_blanks is not None and not flsa_blanks.empty:
+        n = _n(flsa_blanks)
+        fixes.append(f"**Exempt / Non-Exempt status was blank** — we set it from each employee's pay type (paid hourly → Non-Exempt, salaried → Exempt). {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_blanks)}`")
+    if smart_driver_fixes is not None and not smart_driver_fixes.empty:
+        n = _n(smart_driver_fixes)
+        fixes.append(f"**Driver / Walker employee was missing a job title or pay details** — we filled it in from their department. {n} employee{'s' if n != 1 else ''}: `{_ids_str(smart_driver_fixes)}`")
+    if intern_corrections is not None and not intern_corrections.empty:
+        n = _n(intern_corrections)
+        fixes.append(f'**Employment type "Intern" was changed to "Part-Time"**. {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(intern_corrections)}`")
+    if email_fallbacks is not None and not email_fallbacks.empty:
+        n = _n(email_fallbacks)
+        fixes.append(f"**Work email was empty** — we used the employee's personal email instead. {n} employee{'s' if n != 1 else ''}: `{_ids_str(email_fallbacks)}`")
+    if position_blanks is not None and not position_blanks.empty:
+        n = _n(position_blanks)
+        fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(position_blanks)}`")
 
-        if fixes:
-            st.markdown("""
+    if fixes:
+        st.markdown("""
 <div style="background:#f0faf4; border-left:5px solid #1a7a4a; border-radius:8px; padding:16px 20px; margin:16px 0 4px 0;">
-<h4 style="color:#1a4a2a; margin:0 0 4px 0; border:none; padding:0;">✅ We'll fix these for you automatically</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">No action needed — these corrections are applied to your file when you download it. They're recorded in the Change Log.</p>
+<h4 style="color:#1a4a2a; margin:0 0 4px 0; border:none; padding:0;">✅ Fixed automatically — no action needed</h4>
+<p style="color:#46464f; margin:0; font-size:0.9rem;">These corrections are applied to your file when you download it, and recorded in the Change Log.</p>
 </div>
 """, unsafe_allow_html=True)
-            with st.container(height=300, border=True):
-                for fix in fixes:
-                    st.markdown(f"- {fix}")
+        with st.container(height=260, border=True):
+            for fix in fixes:
+                st.markdown(f"- {fix}")
+
+    # --- SECTION 3: PLEASE REVIEW (spotted but NOT changed) ---
+    reviews = []
+    if flsa_corrections is not None and not flsa_corrections.empty:
+        n = _n(flsa_corrections)
+        reviews.append(f"**Pay type and overtime setting don't match** — paid hourly but marked Exempt, or salaried but marked Non-Exempt. We left the data unchanged — please confirm which is correct. {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_corrections)}`")
+    # Status anomalies (On Leave / Inactive) — exclude any employee already
+    # covered by the pay-type-mismatch line above so no one is listed twice.
+    status_review = anomalies
+    if (anomalies is not None and not anomalies.empty
+            and flsa_corrections is not None and not flsa_corrections.empty
+            and 'Employee ID' in anomalies.columns):
+        fc_ids = set(flsa_corrections['Employee ID'])
+        status_review = anomalies[~anomalies['Employee ID'].isin(fc_ids)]
+    if status_review is not None and not status_review.empty:
+        n = _n(status_review)
+        reviews.append(f"**Employee status needs a second look** — e.g. marked On Leave or Inactive with no end date. We left the data unchanged — please review each one. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_review)}`")
+
+    if reviews:
+        st.markdown("""
+<div style="background:#fffaf3; border-left:5px solid #e8881f; border-radius:8px; padding:16px 20px; margin:16px 0 4px 0;">
+<h4 style="color:#6c3a00; margin:0 0 4px 0; border:none; padding:0;">👀 Please review before uploading</h4>
+<p style="color:#46464f; margin:0; font-size:0.9rem;">The tool spotted these but did not change them — they need a person to decide. They're noted in the Change Log too.</p>
+</div>
+""", unsafe_allow_html=True)
+        with st.container(height=180, border=True):
+            for r in reviews:
+                st.markdown(f"- {r}")
