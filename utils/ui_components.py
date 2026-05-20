@@ -199,8 +199,11 @@ def render_missing_column_error(missing):
 
 def _plain_english_issue(raw_issue):
     """Translate a raw validation issue string into plain English a non-payroll
-    user can understand. Falls back to the raw text if no rule matches."""
-    import re
+    user can understand. Messages are GENERIC (no per-employee values such as a
+    job title or state name) so every employee with the same kind of problem
+    groups under a single line — the per-employee detail lives in the
+    'View the full list of affected employees' table. Falls back to the raw
+    text if no rule matches."""
     p = str(raw_issue).strip()
     if not p:
         return ""
@@ -211,9 +214,7 @@ def _plain_english_issue(raw_issue):
     if "Employment Status (blank)" in p:
         return "Missing employment status (should be Active or Terminated)"
     if "Non-standard Status" in p:
-        m = re.search(r"\(([^)]+)\)", p)
-        val = f" — found \"{m.group(1).strip()}\"" if m else ""
-        return f"Unrecognized employment status{val} (should be Active or Terminated)"
+        return "Unrecognized employment status (should be Active or Terminated)"
     if "Terminated but missing Termination Date" in p:
         return "Marked as Terminated but has no termination date"
     if "Employment Type (blank)" in p:
@@ -231,19 +232,13 @@ def _plain_english_issue(raw_issue):
     if "Annual Salary" in p:
         return "Salaried employee is missing an annual salary amount"
     if "Salaried Hourly-Only Exception" in p:
-        m = re.search(r"Job Title '([^']+)'", p)
-        jt = f" ({m.group(1)})" if m else ""
-        return f"Driver / Walker / Helper role{jt} is marked as salary — must be hourly pay"
+        return "Driver / Walker / Helper role is marked as salary — must be hourly pay"
     if "State" in p and "full name" in p:
-        m = re.search(r"'([^']+)'", p)
-        sv = f" (\"{m.group(1)}\")" if m else ""
-        return f"State{sv} should be the 2-letter code, e.g. NY instead of New York"
+        return "State should be the 2-letter code, e.g. NY instead of New York"
     if "predates date of hire" in p:
         return "Termination date is earlier than the hire date"
     if "Special characters in" in p:
-        m = re.search(r"Special characters in (.+?)(?: \(|$)", p)
-        field = m.group(1).strip() if m else "an emergency contact field"
-        return f"Emergency contact ({field}) contains unsupported special characters"
+        return "An emergency contact field contains unsupported special characters"
     return p
 
 
