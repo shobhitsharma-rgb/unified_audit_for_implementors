@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, REQUIRED_CENSUS_FIELDS
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, REQUIRED_CENSUS_FIELDS
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -264,8 +264,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         position_blanks=position_blanks,
     )
 
-    st.info("ℹ️ **Working Hours will be set to 0 for every employee** in the corrected file — all employees, hourly and salaried, whether the source value is blank or already filled in.")
-    st.info("ℹ️ **Two columns will be standardized** in the corrected file: the **Zip / Postal Code** header is renamed to **Zip Code**, and the **Gender** column is populated from the **Sex** column.")
+    render_standardization_notice(include_column_renames=True)
 
     # --- Persistent Download Section ---
     st.markdown("---")
@@ -299,6 +298,17 @@ When you click **Download Corrected Source**, the following corrections are appl
                         'Field Changed': field,
                         'Old Value': str(old_val) if pd.notna(old_val) else "(blank)",
                         'Assumed Value': str(new_val),
+                        'Comments': comment
+                    })
+
+                def log_summary(field, new_val, comment):
+                    # File-wide standardization — one summary row, not per-employee.
+                    audit_trail.append({
+                        'Employee ID': '(All employees)',
+                        'Employee Name': '—',
+                        'Field Changed': field,
+                        'Old Value': '—',
+                        'Assumed Value': new_val,
                         'Comments': comment
                     })
                 
@@ -459,7 +469,10 @@ When you click **Download Corrected Source**, the following corrections are appl
                 if fix_options.get('rename_zip_col'):
                     c_zip = resolved_field_map.get('Zip')
                     if c_zip and c_zip in norm_to_orig:
+                        old_label = norm_to_orig[c_zip]
                         norm_to_orig[c_zip] = "Primary Address: Zip Code"
+                        log_summary("Column header — Zip", "Primary Address: Zip Code",
+                                    f"Home-zip column header standardized from '{old_label}' to 'Primary Address: Zip Code'.")
 
                 if fix_options.get('replace_gender_col'):
                     sex_col = norm_colname("Sex")
@@ -468,6 +481,8 @@ When you click **Download Corrected Source**, the following corrections are appl
                         if c_gender and c_gender in df_download.columns and c_gender != sex_col:
                             df_download = df_download.drop(columns=[c_gender])
                         norm_to_orig[sex_col] = "Gender / Sex (Self-ID)"
+                        log_summary("Gender column", "Populated from Sex column",
+                                    "Gender column populated from the 'Sex' column's values.")
 
                 if fix_options.get('fix_zip'):
                     c_zip = resolved_field_map.get('Zip')
@@ -514,7 +529,10 @@ When you click **Download Corrected Source**, the following corrections are appl
 
                 date_cols = [resolved_field_map.get('Hire Date'), resolved_field_map.get('Original Hire Date'), resolved_field_map.get('Termination Date'), resolved_field_map.get('DOB')]
                 date_cols = [c for c in date_cols if c is not None]
-                df_download = format_datetime_strings(df_download, date_cols)
+                if date_cols:
+                    df_download = format_datetime_strings(df_download, date_cols)
+                    log_summary("Date format", "MM/DD/YYYY",
+                                "All date columns (hire, termination, birth) standardized to MM/DD/YYYY format.")
 
                 if sort_by_manager and col_sup_code and col_sup_code in df_download.columns:
                     emp_id_col = resolved_field_map.get('Employee ID')
@@ -524,6 +542,8 @@ When you click **Download Corrected Source**, the following corrections are appl
                         df_download['__group_count'] = df_download[col_sup_code].astype(str).str.strip().map(lambda x: sup_counts.get(x, 0))
                         df_download = df_download.sort_values(by=['__mgr_count', '__group_count'], ascending=[False, False])
                         df_download = df_download.drop(columns=['__mgr_count', '__group_count'])
+                        log_summary("Row order", "Grouped by manager",
+                                    "Employee rows reordered so each manager is clustered with their reportees.")
 
                 priority_keys = ['Employee ID', 'First Name', 'Last Name', 'Reports To ID', 'Employment Type', 'Pay Type', 'Work Location', 'Workers Comp Code', 'FLSA Classification', 'Employment Status', 'Job Title', 'Department']
                 final_col_order = []
@@ -544,6 +564,8 @@ When you click **Download Corrected Source**, the following corrections are appl
                             renaming_dict[col] = original_label
 
                 df_download = df_download[final_col_order].rename(columns=renaming_dict)
+                log_summary("Column order", "Key fields first",
+                            "Columns reordered so key fields (Employee ID, Name, Pay Type, FLSA, etc.) appear first.")
                 from utils.audit_utils import generate_excel_with_audit
                 st.session_state[data_key] = {
                     "xlsx": generate_excel_with_audit(df_download, pd.DataFrame(audit_trail)),

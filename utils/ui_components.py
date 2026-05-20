@@ -197,6 +197,29 @@ def render_missing_column_error(missing):
     )
 
 
+def render_standardization_notice(include_column_renames=False):
+    """Notice listing the file-wide standardizations applied to every corrected
+    census download. These are also recorded as summary rows in the Change Log."""
+    items = [
+        "**Working hours** — set to **0** for every employee.",
+        "**Dates** — hire, termination and birth dates reformatted to **MM/DD/YYYY**.",
+        "**Column order** — key fields (Employee ID, Name, Pay Type, FLSA, etc.) moved to the front.",
+        "**Row order** — when a reporting hierarchy is present, employee rows are grouped so each manager sits with their reportees.",
+    ]
+    if include_column_renames:
+        items.append(
+            "**Column headers** — the home-zip column header is standardized to "
+            '"Primary Address: Zip Code", and the **Gender** column is populated '
+            "from the **Sex** column."
+        )
+    bullets = "\n".join(f"- {it}" for it in items)
+    st.info(
+        "ℹ️ **Every corrected file is also standardized.** The changes below apply "
+        "to all employees and are recorded in the Change Log of your download:\n\n"
+        + bullets
+    )
+
+
 def _plain_english_issue(raw_issue):
     """Translate a raw validation issue string into plain English a non-payroll
     user can understand. Messages are GENERIC (no per-employee values such as a
