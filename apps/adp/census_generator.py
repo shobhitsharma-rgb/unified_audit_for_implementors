@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_finding_card
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -71,9 +71,7 @@ def preprocess_adp_file(adp_file):
     # --- CRITICAL ERROR: Duplicate Column Check ---
     dupes = check_duplicate_columns(adp_file)
     if dupes:
-        st.error(f"⛔ **Critical Error: Duplicate Column Headers Found!**")
-        st.markdown(f"The following column headers appear multiple times in your file: **{', '.join(dupes)}**")
-        st.warning("Pandas cannot process files with duplicate headers accurately. Please delete the duplicate columns and re-upload the file.")
+        st.error(f"Your file has duplicate column names: **{', '.join(dupes)}**. Please remove the duplicate columns and re-upload.")
         return None, None, None, None
 
     try:
@@ -178,43 +176,34 @@ def render_census_sanity_check():
     missing_critical = [c for c in critical_adp_cols if not resolved_field_map.get(c)]
     
     if len(missing_critical) > 1:
-        st.error("### ⚠️ Mismatched File Detected")
-        st.markdown(f"""
-            <div class='action-hub-error'>
-                <p>It looks like you've uploaded a file that doesn't match the <b>ADP Census</b> format. 
-                This often happens if a Paycom export is uploaded here by mistake.</p>
-                <p><b>Recommendation:</b> Please switch to the <b>Paycom Hub</b> in the sidebar or upload a valid ADP Census Export.</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.error("⚠️ **Wrong file format** — this doesn't look like an ADP Census export. If you meant to upload a Paycom file, switch to the Paycom section in the sidebar.")
         return
 
     has_managers, top_manager_id, top_manager_name, col_sup_code = get_manager_info(df_adp, resolved_field_map)
     sort_by_manager = has_managers and top_manager_id is not None
 
     # --- What This Tool Does (Informational) ---
-    with st.expander("ℹ️ What does this tool do automatically?", expanded=False):
+    with st.expander("ℹ️ What does this tool fix automatically?", expanded=False):
         st.markdown("""
-This tool automatically applies the following corrections to your ADP Census data when you download the **Corrected Source**:
+When you click **Download Corrected Source**, the following corrections are applied automatically:
 
-| Category | Auto-Fix Applied |
+| What we check | What happens automatically |
 |---|---|
-| **FLSA — Driver Override** | If Job Title matches the hourly-only roster (Driver, Walker, Helper, Lead Driver, DDU Dedicated/Shared, Driver-Lite/Step Van/Unscheduled, Delivery Associate — whole-word match), forces Pay Type = Hourly and FLSA = Non-Exempt, overriding any source values |
-| **FLSA — Blanks-only Fill** | When source FLSA is **blank**: Salaried → Exempt, Hourly → Non-Exempt. Populated source FLSA values are **never overwritten** by Pay Type alone |
-| **FLSA — Cannot Determine** | When FLSA, Pay Type, and Job Title can't yield a classification, leaves FLSA blank and flags it on the Change Log for manual review |
-| **Smart Driver Correction** | Fills blank Job Title, FLSA, and Pay Type for Driver/Walker/Helper/DDU/Delivery Associate roles using Department data |
-| **Blank Job Title → Driver** | Defaults blank Job Titles to 'Driver' for Non-Exempt Hourly employees |
-| **Employment Status Mapping** | Maps non-standard statuses (e.g. Inactive → Terminated) |
-| **Worker Category Mapping** | Maps categories like Intern → Part Time |
-| **Leave → Active** | Reclassifies 'Leave' to 'Active' when Termination Date is blank |
-| **Email Fallback** | Uses Personal Email when Work Email is missing |
-| **Job Title Fallback** | Fills blank Job Title from Department Description |
-| **Employment Type Default** | Defaults blank Employment Type to Full Time |
-| **Working Hours** | Forces zero hours for Hourly employees |
-| **Zip Code Cleanup** | Pads 4-digit zips, trims to 5-digits, removes special characters |
-| **Zip Column Rename** | Renames 'Zip / Postal Code' → 'Zip Code' |
-| **Gender Column** | Replaces 'Gender / Sex (Self-ID)' with the 'Sex' column values |
-| **Manager Sorting** | Clusters managers at the top of the file by reportee count |
-| **Date Formatting** | Standardizes all dates to MM/DD/YYYY |
+| **Driver/Walker/Helper roles** | Forced to hourly pay and non-exempt status, even if the source file says salary |
+| **Missing pay classification** | Filled in based on pay type — hourly employees get Non-Exempt, salaried get Exempt |
+| **Unresolvable pay classification** | Left blank and flagged in the Change Log for manual review |
+| **Driver roles with missing pay info** | Job title, pay type, and classification auto-filled using department data |
+| **Blank job title (hourly non-exempt)** | Defaulted to "Driver" |
+| **Non-standard employment status** | Updated to Active or Terminated (e.g., Inactive → Terminated) |
+| **Intern employment type** | Changed to Part-Time |
+| **Employees on leave with no termination date** | Set to Active — please mark them as excluded from payroll in Uzio |
+| **Missing work email** | Filled using personal email as a backup |
+| **Blank job title** | Filled using the department name |
+| **Blank employment type** | Set to Full-Time |
+| **Hourly employee scheduled hours** | Set to 0 (required by Uzio for hourly workers) |
+| **Zip codes** | Padded to 5 digits, trimmed if too long, special characters removed |
+| **Manager ordering** | Managers moved to the top of the file |
+| **Dates** | All dates formatted as MM/DD/YYYY |
         """)
 
     fix_options = render_auto_fix_options("adp_sanity")
@@ -251,122 +240,19 @@ This tool automatically applies the following corrections to your ADP Census dat
     email_fallbacks = validation['email_fallbacks']
     anomalies = validation.get('anomalies', pd.DataFrame())
     smart_driver_fixes = validation.get('smart_driver_fixes', pd.DataFrame())
+    position_blanks = validation.get('position_blanks', pd.DataFrame())
 
-    # --- UNIFIED VALIDATION & MAPPING CENTER ---
-    has_issues = not hard_errors.empty or not flsa_corrections.empty or not flsa_blanks.empty or not intern_corrections.empty or not email_fallbacks.empty or not anomalies.empty
-    
-    if has_issues:
-        with st.expander("🛠️ Census Integrity & Mapping Action Center", expanded=not hard_errors.empty):
-            # 1. Critical Hard Errors (If Any)
-            if not hard_errors.empty:
-                # Categorized breakdown for the card (Actionable IDs with Consolidation & Scroll)
-                import re
-                from collections import defaultdict
-                legend = {
-                    'Missing/Duplicate Info': defaultdict(list), 
-                    'Date & Status Logic': defaultdict(list), 
-                    'Contact Formatting': defaultdict(list)
-                }
-                zip_count = 0
-                
-                for _, err in hard_errors.iterrows():
-                    eid = str(err['Employee ID'])
-                    issue_text = str(err['Issue'])
-                    parts = [p.strip() for p in issue_text.split(",") if p.strip()]
-                    for p in parts:
-                        if "Zip Code" in p:
-                            zip_count += 1
-                            continue
-                            
-                        # --- CONSOLIDATION LOGIC (Sanitize specific values for grouping) ---
-                        clean_issue = p
-                        # 1. Group Date Mismatches
-                        if "predates date of hire" in p:
-                            clean_issue = "Termination date predates Hire date"
-                        # 2. Group Special Characters
-                        elif "Special characters in" in p:
-                            match = re.search(r"Special characters in (.*?)(?:\s|$)", p)
-                            if match:
-                                clean_issue = f"Special characters in {match.group(1).strip()}"
-                        
-                        # Categorization Matcher
-                        if any(m in clean_issue for m in ['Termination', 'Hire', 'Terminated', 'Non-standard', 'Annual Salary']): 
-                            cat = 'Date & Status Logic'
-                        elif 'Special characters' in clean_issue: 
-                            cat = 'Contact Formatting'
-                        else: 
-                            cat = 'Missing/Duplicate Info'
-                        
-                        if eid not in legend[cat][clean_issue]:
-                            legend[cat][clean_issue].append(eid)
-                
-                render_finding_card(
-                    "Integrity Audit Results", 
-                    {
-                        "Critical Issues": len(hard_errors),
-                        "Employees Affected": len(hard_errors['Employee ID'].unique()),
-                        "Category": "Data Integrity"
-                    },
-                    type='error'
-                )
-
-                # --- SCROLLABLE ACTION CENTER ---
-                with st.container(height=400, border=True):
-                    lcol1, lcol2, lcol3 = st.columns(3)
-                    
-                    def render_actionable_list(title, items_dict):
-                        st.markdown(f"**{title}**")
-                        if items_dict:
-                            for issue, ids in sorted(items_dict.items()):
-                                id_str = ", ".join(ids[:3])
-                                if len(ids) > 3: id_str += f" (+{len(ids)-3} more)"
-                                # Highlight the issue name
-                                st.markdown(f"- **{issue}** \n  `IDs: {id_str}`")
-                        else:
-                            st.markdown("_None_")
-
-                    with lcol1:
-                        render_actionable_list("Field Integrity", legend['Missing/Duplicate Info'])
-                        if zip_count > 0:
-                            st.info(f"ℹ️ {zip_count} Zip Code issues are hidden from this view but included in the download.")
-                            
-                    with lcol2:
-                        render_actionable_list("Date & Status", legend['Date & Status Logic'])
-                    with lcol3:
-                        render_actionable_list("Formatting", legend['Contact Formatting'])
-                    
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                with st.expander("🔍 Show Affected Employee IDs", expanded=False):
-                    st.dataframe(hard_errors, hide_index=True, use_container_width=True)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-
-            # 2. Automated Mapping Suggestions
-            st.markdown("##### 💡 Automated Mapping Suggestions")
-            st.info("The following can be automatically applied using the checkboxes at the top.")
-            wcol1, wcol2 = st.columns(2)
-            def get_ids_str(df_in):
-                if df_in.empty: return ""
-                ids = df_in['Employee ID'].unique().tolist()
-                id_str = ", ".join(str(x) for x in ids[:3])
-                if len(ids) > 3: id_str += f" (+{len(ids)-3} more)"
-                return f" `IDs: {id_str}`"
-
-            with wcol1:
-                st.markdown("**FLSA & Pay Rules**")
-                if not flsa_corrections.empty: 
-                    st.markdown(f"- ℹ️ **FLSA Mismatches:** {len(flsa_corrections)} employee(s) *(Pay Type vs FLSA conflict)*.{get_ids_str(flsa_corrections)}")
-                if not flsa_blanks.empty: 
-                    st.markdown(f"- ⚠️ **Blank FLSA:** {len(flsa_blanks)} employee(s) *(Missing Exempt/Non-Exempt)*.{get_ids_str(flsa_blanks)}")
-                if not anomalies.empty: 
-                    st.markdown(f"- ⚠️ **FLSA Anomalies:** {len(anomalies)} employee(s) *(Contradictory Logic)*.{get_ids_str(anomalies)}")
-            with wcol2:
-                st.markdown("**Employment & Contact**")
-                if not intern_corrections.empty: 
-                    st.markdown(f"- ⚠️ **Intern Codes:** {len(intern_corrections)} employee(s) *(Mapping Intern to Part Time)*.{get_ids_str(intern_corrections)}")
-                if not email_fallbacks.empty: 
-                    st.markdown(f"- 📧 **Email Fallbacks:** {len(email_fallbacks)} employee(s) *(Using personal where work email is missing)*.{get_ids_str(email_fallbacks)}")
+    # --- VALIDATION RESULTS (plain-English, two-section layout) ---
+    render_validation_results(
+        hard_errors=hard_errors,
+        flsa_corrections=flsa_corrections,
+        flsa_blanks=flsa_blanks,
+        anomalies=anomalies,
+        intern_corrections=intern_corrections,
+        email_fallbacks=email_fallbacks,
+        smart_driver_fixes=smart_driver_fixes,
+        position_blanks=position_blanks,
+    )
     # --- Persistent Download Section ---
     st.markdown("---")
     st.subheader("📥 Download Cleaned Results")
