@@ -558,8 +558,8 @@ When you click **Download Corrected Source**, the following corrections are appl
                 from utils.audit_utils import generate_excel_with_audit
                 st.session_state[data_key] = {
                     "xlsx": generate_excel_with_audit(df_download, pd.DataFrame(audit_trail)),
-                    "csv": df_download.to_csv(index=False).encode("utf-8"),
-                    "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8")
+                    "csv": df_download.to_csv(index=False).encode("utf-8-sig"),
+                    "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8-sig")
                 }
 
         stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
