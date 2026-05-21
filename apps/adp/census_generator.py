@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, REQUIRED_CENSUS_FIELDS
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, REQUIRED_CENSUS_FIELDS, _plain_english_issue
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -565,11 +565,47 @@ When you click **Download Corrected Source**, the following corrections are appl
                 df_download = df_download[final_col_order].rename(columns=renaming_dict)
                 log_summary("Column order", "Key fields first",
                             "Columns reordered so key fields (Employee ID, Name, Pay Type, FLSA, etc.) appear first.")
-                from utils.audit_utils import generate_excel_with_audit
+                # --- Issues report: problems that still need the implementor ---
+                issue_rows = []
+                for _, _err in hard_errors.iterrows():
+                    _eid = str(_err.get('Employee ID', ''))
+                    _nm = str(_err.get('Name', '') or '')
+                    for _part in [p.strip() for p in str(_err.get('Issue', '')).split(',') if p.strip()]:
+                        issue_rows.append({
+                            'Employee ID': _eid, 'Employee Name': _nm,
+                            'Category': 'Needs your attention',
+                            'Issue': _plain_english_issue(_part),
+                            'What to do': 'Correct this in the source file, then re-upload.',
+                        })
+                _fc_ids = set()
+                if not flsa_corrections.empty and 'Employee ID' in flsa_corrections.columns:
+                    _fc_ids = set(flsa_corrections['Employee ID'].astype(str))
+                    for _, _r in flsa_corrections.iterrows():
+                        issue_rows.append({
+                            'Employee ID': str(_r.get('Employee ID', '')),
+                            'Employee Name': str(_r.get('Name', '') or ''),
+                            'Category': 'Please review',
+                            'Issue': "Pay type and Exempt / Non-Exempt setting do not match",
+                            'What to do': 'Confirm which is correct — the tool kept the original value unchanged.',
+                        })
+                if not anomalies.empty and 'Employee ID' in anomalies.columns:
+                    for _, _r in anomalies.iterrows():
+                        if str(_r.get('Employee ID', '')) in _fc_ids:
+                            continue
+                        issue_rows.append({
+                            'Employee ID': str(_r.get('Employee ID', '')),
+                            'Employee Name': str(_r.get('Name', '') or ''),
+                            'Category': 'Please review',
+                            'Issue': 'Employee is On Leave / Inactive',
+                            'What to do': 'The tool set status to Active — mark this employee as excluded from payroll in Uzio.',
+                        })
+                df_issues = pd.DataFrame(issue_rows, columns=['Employee ID', 'Employee Name', 'Category', 'Issue', 'What to do'])
+
+                from utils.audit_utils import generate_excel_with_audit, generate_changelog_and_issues_xlsx
                 st.session_state[data_key] = {
                     "xlsx": generate_excel_with_audit(df_download, pd.DataFrame(audit_trail)),
                     "csv": df_download.to_csv(index=False).encode("utf-8"),
-                    "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8")
+                    "audit": generate_changelog_and_issues_xlsx(pd.DataFrame(audit_trail), df_issues),
                 }
 
         stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
@@ -580,9 +616,9 @@ When you click **Download Corrected Source**, the following corrections are appl
         with col_dl2:
             st.download_button("📥 Download Corrected Source (CSV)", cached.get("csv", b""), f"ADP_Cleaned_{stamp}.csv", "text/csv", key="adp_sanity_dl_csv")
         with col_dl3:
-            st.download_button("📜 Download Change Log (CSV)", cached.get("audit", b""), f"ADP_Change_Log_{stamp}.csv", "text/csv", key="adp_sanity_dl_audit")
-        
-        st.info("The Change Log is a separate audit trail showing all automated corrections made to the file.")
+            st.download_button("📋 Download Change Log & Issues (XLSX)", cached.get("audit", b""), f"ADP_Change_Log_and_Issues_{stamp}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="adp_sanity_dl_audit")
+
+        st.info("The **Change Log & Issues** file has two tabs — **Change Log** (every automated correction made) and **Issues** (problems that still need your attention).")
 
     # --- Job Title Mapping Section ---
     from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping

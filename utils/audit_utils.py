@@ -1669,6 +1669,24 @@ def selective_update_uzio(df_source, df_template, selected_uzio_cols, vendor_fie
     summary = f"Updated {updated_count} employees. Total {len(change_details)} cell changes."
     return df_updated, summary, pd.DataFrame(change_details)
 
+def generate_changelog_and_issues_xlsx(df_audit, df_issues,
+                                       sheet_audit="Change Log", sheet_issues="Issues"):
+    """In-memory .xlsx with two sheets: the Change Log (every automated
+    correction applied) and the Issues report (problems that still need the
+    implementor's attention)."""
+    if df_audit is None or df_audit.empty:
+        df_audit = pd.DataFrame([{"Note": "No automated corrections were applied."}])
+    if df_issues is None or df_issues.empty:
+        df_issues = pd.DataFrame([{"Note": "No issues found — nothing needs your attention."}])
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_audit.to_excel(writer, index=False, sheet_name=sheet_audit)
+        df_issues.to_excel(writer, index=False, sheet_name=sheet_issues)
+        for sh in (sheet_audit, sheet_issues):
+            writer.sheets[sh].set_column(0, 8, 30)
+    return output.getvalue()
+
+
 def generate_excel_with_audit(df_main, df_audit, sheet_name_main="Corrected Census", sheet_name_audit="Change Log"):
     """
     Generates an Excel file in memory with two sheets.
