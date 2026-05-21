@@ -197,6 +197,16 @@ def render_missing_column_error(missing):
     )
 
 
+def render_sanity_disclaimer():
+    """Standing disclaimer shown at the top of both Census Sanity Check tools."""
+    st.info(
+        "**Note:** Both of these tools were built and groomed over the course of a "
+        "4-month implementation. They handle the vast majority of cases automatically "
+        "— but there may still be scenarios where human intervention and judgement are "
+        "necessary. Always review the results and the Change Log before proceeding."
+    )
+
+
 def render_standardization_notice(include_column_renames=False):
     """Notice listing the file-wide standardizations applied to every corrected
     census download. These are also recorded as summary rows in the Change Log."""

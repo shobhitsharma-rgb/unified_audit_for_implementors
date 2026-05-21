@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, REQUIRED_CENSUS_FIELDS
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, render_sanity_disclaimer, REQUIRED_CENSUS_FIELDS
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -172,6 +172,7 @@ def render_census_sanity_check():
     st.title("📑 ADP Census Sanity Check")
     st.markdown("Ensure your ADP Census Export is audit-ready for Uzio benefits. This tool identifies critical data gaps, corrects formatting issues, and performs automated logic checks.")
     st.markdown("</div>", unsafe_allow_html=True)
+    render_sanity_disclaimer()
 
     adp_file = st.file_uploader("Upload ADP Census Export (.xlsx, .csv)", type=["xlsx", "csv"], key="adp_sanity_upload")
     if not adp_file: return
