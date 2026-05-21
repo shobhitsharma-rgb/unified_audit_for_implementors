@@ -200,9 +200,9 @@ def render_missing_column_error(missing):
 def render_sanity_disclaimer():
     """Standing disclaimer shown at the top of both Census Sanity Check tools."""
     st.info(
-        "**Note:** Both of these tools were built and groomed over the course of a "
-        "4-month implementation. They handle the vast majority of cases automatically "
-        "— but there may still be scenarios where human intervention and judgement are "
+        "**Note:** This tool was built and groomed over the course of a 4-month "
+        "implementation. It handles the vast majority of cases automatically — but "
+        "there may still be scenarios where human intervention and judgement are "
         "necessary. Always review the results and the Change Log before proceeding."
     )
 
