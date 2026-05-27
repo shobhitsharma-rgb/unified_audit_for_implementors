@@ -38,6 +38,16 @@ STATUS_MISSING_ADP = "Employee ID Not Found in ADP"
 STATUS_COL_MISSING_ADP = "Column Missing in ADP Sheet"
 STATUS_COL_MISSING_UZIO = "Column Missing in Uzio Sheet"
 
+# Mixed-mode (Partial $ + Partial %) statuses surfaced in the Exception sheet.
+# Mirrors the R4 transformation done by apps/adp/payment_method_sanity.py.
+STATUS_CORRECTED_SETUP = "Corrected Setup (Mixed Mode)"
+STATUS_MIXED_MODE_MISMATCH = "Mismatch (Mixed Mode)"
+
+# Per-account deposit-mode tags used to detect mixed-mode employees.
+MODE_FULL = "Full"
+MODE_PARTIAL_PCT = "Partial %"
+MODE_PARTIAL_AMT = "Partial $"
+
 def norm_str(x):
     if x is None:
         return ""
@@ -96,6 +106,68 @@ def _get_field_val(record, field):
     if field == "Amount": return record.get("Amount", 0.0)
     if field == "Percent": return record.get("Percent", 0.0)
     return ""
+
+def _classify_adp_mode(dep_type: str) -> str:
+    """Tag an ADP Deposit Type as Full / Partial % / Partial $.
+
+    Order matters: 'Partial %' must be checked before 'Partial' since the
+    latter is a substring of the former.
+    """
+    s = (dep_type or "").strip().lower()
+    if "full" in s or "balance" in s:
+        return MODE_FULL
+    if "partial %" in s or "partial%" in s or "%" in s or "percent" in s:
+        return MODE_PARTIAL_PCT
+    if "partial" in s or "amount" in s or "flat" in s:
+        return MODE_PARTIAL_AMT
+    return MODE_FULL
+
+def _compute_r4_expected(adp_accs):
+    """Compute the per-account distribution Uzio should hold for a mixed-mode employee.
+
+    Duplicates Rule R4 from apps/adp/payment_method_sanity.py: keep Partial %
+    rows at their stated percentages, split the remaining 100 - sum equally
+    across the non-percent (amount + full) accounts, with the designated Full
+    row absorbing rounding drift. Sanity tool is the source of truth; this
+    must stay in sync with _fix_employee's R4 branch.
+
+    Returns: { id(acc): {"expected_pct": float, "expected_amt": 0.0} }
+    """
+    pct_accs = [a for a in adp_accs if a.get("Mode") == MODE_PARTIAL_PCT]
+    amt_accs = [a for a in adp_accs if a.get("Mode") == MODE_PARTIAL_AMT]
+    full_accs = [a for a in adp_accs if a.get("Mode") == MODE_FULL]
+
+    kept_pct = sum(a.get("Percent", 0.0) or 0.0 for a in pct_accs)
+    non_pct_accs = amt_accs + full_accs
+    remaining_pct = 100.0 - kept_pct
+
+    expected = {}
+
+    # Degenerate: percent rows already total >= 100 or no non-percent rows to redistribute to.
+    # Sanity flags this for manual review; we mirror by expecting 0% on the rest.
+    if remaining_pct <= 0 or not non_pct_accs:
+        for a in adp_accs:
+            if a in pct_accs:
+                expected[id(a)] = {"expected_pct": round(a.get("Percent", 0.0) or 0.0, 2), "expected_amt": 0.0}
+            else:
+                expected[id(a)] = {"expected_pct": 0.0, "expected_amt": 0.0}
+        return expected
+
+    equal_share = round(remaining_pct / len(non_pct_accs), 2)
+    # Designated Full: first existing Full, else last amount row (matches sanity tiebreaker).
+    full_acc = full_accs[0] if full_accs else amt_accs[-1]
+    non_full_non_pct = [a for a in non_pct_accs if a is not full_acc]
+    running_total = kept_pct + equal_share * len(non_full_non_pct)
+    full_share = round(100.0 - running_total, 2)
+
+    for a in adp_accs:
+        if a in pct_accs:
+            expected[id(a)] = {"expected_pct": round(a.get("Percent", 0.0) or 0.0, 2), "expected_amt": 0.0}
+        elif a is full_acc:
+            expected[id(a)] = {"expected_pct": full_share, "expected_amt": 0.0}
+        else:
+            expected[id(a)] = {"expected_pct": equal_share, "expected_amt": 0.0}
+    return expected
 
 def _compare_field(field, u_val, p_val, u_rec, p_rec):
     """Compare single field values."""
@@ -253,7 +325,8 @@ def run_audit(file_uzio, file_adp):
             "Percent": pct,
             "Amount": amt,
             "Name": raw_name,
-            "IsNet": is_net
+            "IsNet": is_net,
+            "Mode": _classify_adp_mode(dep_type),
         }
         
         if acc["Routing"] or acc["Account"]:
@@ -288,10 +361,20 @@ def run_audit(file_uzio, file_adp):
                 if remainder > 0:
                      net_accs[0]["Percent"] = round(remainder, 2)
 
+    # 2c. Identify mixed-mode employees (both Partial $ and Partial % rows on ADP side).
+    # These get routed to the Exception sheet — their Uzio side is compared against
+    # the R4-expected distribution from the sanity tool, not the raw ADP values.
+    mixed_mode_emp_ids = set()
+    for emp_id, accs in adp_map.items():
+        modes = {a.get("Mode") for a in accs}
+        if MODE_PARTIAL_PCT in modes and MODE_PARTIAL_AMT in modes:
+            mixed_mode_emp_ids.add(emp_id)
+
     # 3. Comparison Logic
     FIELDS = ["Routing Number", "Account Number", "Account Type", "Amount", "Percent"]
     rows = []
-    
+    exception_rows = []
+
     all_ids = set(uzio_map.keys()) | set(adp_map.keys())
     
     for emp_id in sorted(all_ids):
@@ -349,8 +432,99 @@ def run_audit(file_uzio, file_adp):
 
         # Case 3: Both Exist (ID is in both maps)
         if not u_accs and not a_accs:
-            # Both present but neither has accounts. Ignore? 
+            # Both present but neither has accounts. Ignore?
             # Or match? User didn't specify. Assuming ignore or "Data Match" on empty state.
+            continue
+
+        # Mixed-mode short-circuit: this employee is reported in the Exception sheet
+        # with R4-expected values, NOT in Comparison_Detail. Keeps the main tab free
+        # of artificial mismatches caused by the sanity tool's mandatory rewrite.
+        if emp_id in mixed_mode_emp_ids:
+            expected_map = _compute_r4_expected(a_accs)
+
+            u_remaining = u_accs[:]
+            a_remaining = a_accs[:]
+            matched_pairs = []
+            for u in list(u_remaining):
+                match = None
+                for a in a_remaining:
+                    if u["Account"] and u["Account"] == a["Account"]:
+                        match = a
+                        break
+                if match:
+                    matched_pairs.append((u, match))
+                    u_remaining.remove(u)
+                    a_remaining.remove(match)
+            for u in list(u_remaining):
+                match = None
+                for a in a_remaining:
+                    if u["Routing"] and u["Routing"] == a["Routing"] and u["Type"] == a["Type"]:
+                        match = a
+                        break
+                if match:
+                    matched_pairs.append((u, match))
+                    u_remaining.remove(u)
+                    a_remaining.remove(match)
+
+            for u, a in matched_pairs:
+                exp = expected_map.get(id(a), {"expected_pct": 0.0, "expected_amt": 0.0})
+                for field in FIELDS:
+                    u_val = _get_field_val(u, field)
+                    a_val = _get_field_val(a, field)
+
+                    if field == "Amount":
+                        exp_val = exp["expected_amt"]
+                        ok = abs(norm_money(u_val) - exp_val) < 0.01
+                    elif field == "Percent":
+                        exp_val = exp["expected_pct"]
+                        ok = abs(norm_money(u_val) - exp_val) < 0.01
+                    elif field in ("Routing Number", "Account Number"):
+                        exp_val = a_val
+                        ok = norm_digits(u_val) == norm_digits(a_val)
+                    else:
+                        # Account Type
+                        exp_val = a_val
+                        ok = str(u_val).strip().lower() == str(a_val).strip().lower()
+
+                    exception_rows.append({
+                        "Employee ID": emp_id,
+                        "Employee Name": emp_name,
+                        "Field": field,
+                        "UZIO_Value": u_val,
+                        "ADP_Value": a_val,
+                        "Expected_Uzio (R4)": exp_val,
+                        "Status": STATUS_CORRECTED_SETUP if ok else STATUS_MIXED_MODE_MISMATCH,
+                    })
+
+            for u in u_remaining:
+                for field in FIELDS:
+                    exception_rows.append({
+                        "Employee ID": emp_id,
+                        "Employee Name": emp_name,
+                        "Field": field,
+                        "UZIO_Value": _get_field_val(u, field),
+                        "ADP_Value": "Not Found",
+                        "Expected_Uzio (R4)": "",
+                        "Status": STATUS_MIXED_MODE_MISMATCH,
+                    })
+            for a in a_remaining:
+                exp = expected_map.get(id(a), {})
+                for field in FIELDS:
+                    if field == "Percent":
+                        exp_show = exp.get("expected_pct", 0.0)
+                    elif field == "Amount":
+                        exp_show = exp.get("expected_amt", 0.0)
+                    else:
+                        exp_show = _get_field_val(a, field)
+                    exception_rows.append({
+                        "Employee ID": emp_id,
+                        "Employee Name": emp_name,
+                        "Field": field,
+                        "UZIO_Value": "Not Found",
+                        "ADP_Value": _get_field_val(a, field),
+                        "Expected_Uzio (R4)": exp_show,
+                        "Status": STATUS_MIXED_MODE_MISMATCH,
+                    })
             continue
             
         if u_accs and not a_accs:
@@ -433,16 +607,45 @@ def run_audit(file_uzio, file_adp):
                 })
 
     df_res = pd.DataFrame(rows)
-    
+    df_exc = pd.DataFrame(
+        exception_rows,
+        columns=["Employee ID", "Employee Name", "Field", "UZIO_Value",
+                 "ADP_Value", "Expected_Uzio (R4)", "Status"],
+    )
+
     # --- Generate Excel ---
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, sheet_name='Comparison_Detail', index=False)
-        
-        if not df_res.empty:
-            summary = df_res.groupby(["Status", "Field"]).size().reset_index(name="Count")
+        df_exc.to_excel(writer, sheet_name='Exception_Mixed_Mode', index=False)
+
+        # Conditional formatting on the Exception sheet's Status column.
+        workbook = writer.book
+        exc_sheet = writer.sheets['Exception_Mixed_Mode']
+        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+        red_fmt = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+        # Status is column G (index 6, 0-based). Apply across all data rows.
+        last_row = max(len(df_exc), 1) + 1
+        exc_sheet.conditional_format(f'G2:G{last_row}', {
+            'type': 'text', 'criteria': 'containing',
+            'value': 'Corrected Setup', 'format': green_fmt,
+        })
+        exc_sheet.conditional_format(f'G2:G{last_row}', {
+            'type': 'text', 'criteria': 'containing',
+            'value': 'Mismatch (Mixed Mode)', 'format': red_fmt,
+        })
+
+        # Summary tab — combine Status/Field counts from main + exception.
+        if not df_res.empty or not df_exc.empty:
+            parts = []
+            if not df_res.empty:
+                parts.append(df_res[["Status", "Field"]])
+            if not df_exc.empty:
+                parts.append(df_exc[["Status", "Field"]])
+            df_summary_src = pd.concat(parts, ignore_index=True)
+            summary = df_summary_src.groupby(["Status", "Field"]).size().reset_index(name="Count")
             summary.to_excel(writer, sheet_name='Summary', index=False)
-            
+
     return output.getvalue()
 
 def render_ui():
@@ -458,6 +661,7 @@ def render_ui():
     - **ADP Account Type** ('CK1 - checking') is normalized to 'Checking'/'Savings'.
     - **ADP Deposit Type** ('Full', 'Partial %', 'Partial') is mapped to Percent/Amount.
     - **Routing/Account Numbers** are stripped of leading zeros for comparison.
+    - **Mixed-mode employees** (ADP source has both `Partial $` AND `Partial %` accounts) are routed to the **`Exception_Mixed_Mode`** sheet instead of `Comparison_Detail`. Their Uzio values are compared against the R4 distribution the sanity tool would have produced (percent rows preserved, remaining 100−sum split equally across the non-percent accounts). Rows matching R4 are highlighted green as **Corrected Setup**; rows that don't match are highlighted red as **Mismatch (Mixed Mode)**.
     """)
     
     col1, col2 = st.columns(2)
