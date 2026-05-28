@@ -449,7 +449,11 @@ def deduplicate_adp(df: pd.DataFrame, key_col: str) -> pd.DataFrame:
     return deduped.reset_index(drop=True)
 
 # ---------- Core compare ----------
-def run_comparison(uzio_file, adp_file) -> bytes:
+def compute_audit_dataframes(uzio_file, adp_file):
+    """Pure-compute split of run_comparison: returns the DataFrames the Excel writer
+    would have written, without the BytesIO/openpyxl step. The standalone tool calls
+    this and then writes Excel; the ADP Consolidated Audit calls this and embeds the
+    DataFrames into the chief workbook. Logic must stay identical to run_comparison."""
     # 1. Read UZIO Raw
     uzio = read_uzio_raw_file(uzio_file)
     if uzio is None:
@@ -1299,6 +1303,35 @@ def run_comparison(uzio_file, adp_file) -> bytes:
             len(df_hourly_zero_hours)
         ]
     })
+
+    return {
+        "Summary": summary,
+        "Field_Summary_By_Status": field_summary_by_status,
+        "Comparison_Detail_AllFields": comparison_detail,
+        "FLSA_Compliance_Issues": flsa_issues,
+        "Data_Quality_Issues": dq_issues,
+        "Active_Missing_In_Uzio": active_missing_in_uzio,
+        "Terminated_Missing_In_Uzio": terminated_missing_in_uzio,
+        "Duplicate_SSN_Check": df_dupe_ssns,
+        "Salaried_Driver_Exceptions": df_salaried_drivers,
+        "High_Hourly_Rate_Anomalies": df_high_rate,
+        "Hourly_Zero_Hours_Exceptions": df_hourly_zero_hours,
+    }
+
+
+def run_comparison(uzio_file, adp_file) -> bytes:
+    dfs = compute_audit_dataframes(uzio_file, adp_file)
+    summary = dfs["Summary"]
+    field_summary_by_status = dfs["Field_Summary_By_Status"]
+    comparison_detail = dfs["Comparison_Detail_AllFields"]
+    flsa_issues = dfs["FLSA_Compliance_Issues"]
+    dq_issues = dfs["Data_Quality_Issues"]
+    active_missing_in_uzio = dfs["Active_Missing_In_Uzio"]
+    terminated_missing_in_uzio = dfs["Terminated_Missing_In_Uzio"]
+    df_dupe_ssns = dfs["Duplicate_SSN_Check"]
+    df_salaried_drivers = dfs["Salaried_Driver_Exceptions"]
+    df_high_rate = dfs["High_Hourly_Rate_Anomalies"]
+    df_hourly_zero_hours = dfs["Hourly_Zero_Hours_Exceptions"]
 
     # ---------- Export report ----------
     out = io.BytesIO()
