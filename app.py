@@ -36,7 +36,7 @@ platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom", "Universal Tool
 
 if platform == "ADP":
     st.sidebar.subheader("ADP Tools")
-    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Method Sanity", "Payment Audit", "FIT/SIT Sanity", "Emergency Audit", "License Audit"], key="adp_nav")
+    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Method Sanity", "Payment Audit", "Withholding Audit", "FIT/SIT Sanity", "Emergency Audit", "License Audit"], key="adp_nav")
 
     if adp_tool == "Census Sanity":
         from apps.adp.census_generator import render_census_sanity_check
@@ -52,6 +52,9 @@ if platform == "ADP":
         render_ui()
     elif adp_tool == "Payment Audit":
         from apps.adp.payment_audit import render_ui
+        render_ui()
+    elif adp_tool == "Withholding Audit":
+        from apps.adp.withholding_audit import render_ui
         render_ui()
     elif adp_tool == "Emergency Audit":
         from apps.adp.emergency_audit import render_ui
