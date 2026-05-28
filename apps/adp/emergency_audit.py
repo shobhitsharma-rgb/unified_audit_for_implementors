@@ -79,7 +79,11 @@ def _compare_val(field, u_val, a_val):
 
     return False
 
-def run_audit(file_uzio, file_adp):
+def compute_audit_dataframes(file_uzio, file_adp):
+    """Pure-compute split of run_audit: returns the DataFrames that the Excel writer
+    would have written, without the BytesIO/openpyxl step. The standalone tool calls
+    this and then writes Excel; the ADP Consolidated Audit calls this and embeds the
+    DataFrames into the chief workbook. Logic must stay identical to run_audit."""
     # 1. Load Data
     # Uzio: Header=1 based on inspection
     df_uzio = pd.read_excel(file_uzio, header=1)
@@ -88,6 +92,7 @@ def run_audit(file_uzio, file_adp):
     df_adp.columns = [str(c).strip() for c in df_adp.columns]
     
     # 2. Map Columns
+    # Uzio: 'Employee ID', 'Name', 'Relationship', 'Phone'
     u_map = {
         "EmpID": next((c for c in df_uzio.columns if "Employee ID" in c), "Employee ID"),
         "Name": next((c for c in df_uzio.columns if "Name" in c and "Full" not in c and "Company" not in c), "Name"),
@@ -95,6 +100,7 @@ def run_audit(file_uzio, file_adp):
         "Phone": next((c for c in df_uzio.columns if "Phone" in c), "Phone")
     }
     
+    # ADP: 'Associate ID', 'Contact Name', 'Relationship Description', 'Mobile Phone'
     a_map = {
         "EmpID": next((c for c in df_adp.columns if "Associate ID" in c), "Associate ID"),
         "Name": next((c for c in df_adp.columns if "Contact Name" in c), "Contact Name"),
@@ -103,6 +109,7 @@ def run_audit(file_uzio, file_adp):
     }
 
     # 3. Group by Employee
+    # Structure: { EmpID: [ {Name, Relation, Phone}, ... ] }
     uzio_data = {}
     u_all_eids = set()
     for idx, row in df_uzio.iterrows():
@@ -116,6 +123,7 @@ def run_audit(file_uzio, file_adp):
             "Phone": norm_phone(row.get(u_map["Phone"])),
             "RawPhone": norm_str(row.get(u_map["Phone"]))
         }
+        # Only add valid contacts (must have Name or Phone)
         if contact["Name"] or contact["Phone"]:
             if eid not in uzio_data: uzio_data[eid] = []
             uzio_data[eid].append(contact)
@@ -173,9 +181,11 @@ def run_audit(file_uzio, file_adp):
                     })
             continue
 
-        # Match Contacts
+        # Match Contacts for existing Employee
+        # Simple Logic: Try to match by Name first, then Phone
         u_pending = u_contacts[:]
         a_pending = a_contacts[:]
+        
         matched_pairs = []
         
         # Pass 1: Exact Name Match
@@ -209,8 +219,13 @@ def run_audit(file_uzio, file_adp):
                 u_val = _get_val(u, f)
                 a_val = _get_val(a, f)
                 
-                u_disp = u["RawPhone"] if f == "Phone" else u_val
-                a_disp = a["RawPhone"] if f == "Phone" else a_val
+                # For display, show Raw Phone
+                if f == "Phone":
+                    u_disp = u["RawPhone"]
+                    a_disp = a["RawPhone"]
+                else:
+                    u_disp = u_val
+                    a_disp = a_val
                 
                 if _compare_val(f, u_val, a_val):
                     status = STATUS_MATCH
@@ -225,7 +240,7 @@ def run_audit(file_uzio, file_adp):
                     "ADP Value": a_disp
                 })
         
-        # Unmatched
+        # Unmatched Uzio (Missing in ADP)
         for u in u_pending:
             for f in FIELDS:
                 rows.append({
@@ -236,6 +251,7 @@ def run_audit(file_uzio, file_adp):
                     "ADP Value": ""
                 })
                 
+        # Unmatched ADP (Missing in Uzio)
         for a in a_pending:
             for f in FIELDS:
                 rows.append({
@@ -247,14 +263,21 @@ def run_audit(file_uzio, file_adp):
                 })
 
     df_res = pd.DataFrame(rows)
-    
+
+    return {"Emergency_Contact_Audit": df_res}
+
+
+def run_audit(file_uzio, file_adp):
+    dfs = compute_audit_dataframes(file_uzio, file_adp)
+    df_res = dfs["Emergency_Contact_Audit"]
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, sheet_name='Emergency_Contact_Audit', index=False)
         if not df_res.empty:
             summ = df_res.groupby(["Status", "Field"]).size().reset_index(name="Count")
             summ.to_excel(writer, sheet_name='Summary', index=False)
-            
+
     return output.getvalue()
 
 def render_ui():

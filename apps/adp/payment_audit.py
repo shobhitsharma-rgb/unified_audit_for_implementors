@@ -204,7 +204,12 @@ def _read_payment_file(file, header=0):
             return pd.read_csv(file, header=header, dtype=str, encoding='latin1')
     return pd.read_excel(file, header=header, dtype=str)
 
-def run_audit(file_uzio, file_adp):
+def compute_audit_dataframes(file_uzio, file_adp):
+    """Pure-compute split of run_audit: returns the DataFrames the Excel writer would
+    have written, without the BytesIO/xlsxwriter step. The standalone tool calls this
+    and then writes Excel (preserving conditional formatting); the ADP Consolidated
+    Audit calls this and forwards the DataFrames into the chief workbook. Logic must
+    stay identical to run_audit."""
     # 1. Load Uzio Data
     # Uzio Export typically starts at Row 2 (Header=1)
     df_uzio = _read_payment_file(file_uzio, header=1)
@@ -612,6 +617,17 @@ def run_audit(file_uzio, file_adp):
         columns=["Employee ID", "Employee Name", "Field", "UZIO_Value",
                  "ADP_Value", "Expected_Uzio (R4)", "Status"],
     )
+
+    return {
+        "Comparison_Detail": df_res,
+        "Exception_Mixed_Mode": df_exc,
+    }
+
+
+def run_audit(file_uzio, file_adp):
+    dfs = compute_audit_dataframes(file_uzio, file_adp)
+    df_res = dfs["Comparison_Detail"]
+    df_exc = dfs["Exception_Mixed_Mode"]
 
     # --- Generate Excel ---
     output = io.BytesIO()
