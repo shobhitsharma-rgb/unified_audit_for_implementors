@@ -1,0 +1,215 @@
+FEDERAL_SINGLE("Single"), FEDERAL_MARRIED("Married"), FEDERAL_MARRIED_SINGLE("Married but withhold as Single"),
+		MD_SINGLE("Single"), MD_MARRIED("Married"), MD_MARRIED_SINGLE("Married but withhold at single rate"),
+		DC_SINGLE("Single"), DC_MARRIED_DP_JOINTLY("Married/Domestic Partners Filing Jointly"),
+		DC_MARRIED_SEPARATELY("Married Filing Separately"), 
+		DC_HEAD_OF_HOUSEHOLD("Head of Household"),
+		DC_MARRIED_DP_SEPARATELY("Married/Domestic Partners Filing Separately"),
+		FEDERAL_SINGLE_OR_MARRIED("Single or Married filing separately"),
+		FEDERAL_MARRIED_JOINTLY("Married filing jointly or Qualifying surviving spouse"), FEDERAL_HEAD_OF_HOUSEHOLD("Head of household"),
+		NM_SINGLE("Single or Married filing separately"), NM_MARRIED("Married filing jointly or Qualifying Surviving Spouse"), NM_MARRIED_SINGLE("Married but withhold as Single"),
+		NM_HEAD_OF_HOUSEHOLD("Head of Household"),
+		MS_SINGLE("Single"),MS_HEAD_OF_HOUSEHOLD("Head of Family"),MS_M1("Married (Spouse NOT employed)"),
+		MS_M2("Married (Spouse is employed)"),MO_SINGLE("Single or Married Spouse Works or Married Filing Separate"),
+		MO_MARRIED("Married (Spouse does not work)"), MO_HEAD_OF_HOUSEHOLD("Head of Household"),
+		AL_NO_PERSONAL_EXEMPTION("No Personal Exemption"), AL_SINGLE("Single"), AL_MARRIED("Married"), AL_MARRIED_SEPARATELY("Married Filing Separately"),
+		AL_HEAD_OF_HOUSEHOLD("Head of Family"),DE_MARRIED("Married"),DE_SINGLE("Single"),
+		DE_MARRIED_SINGLE_RATE("Married but Withhold as Single"),OK_MARRIED("Married"),OK_SINGLE("Single"),
+		OK_MARRIED_SINGLE_RATE("Married but Withhold as Single"),OK_NRA("Non-Resident Alien"),
+		NC_HEAD_OF_HOUSEHOLD("Head of Household"),NC_MARRIED("Married Filing Jointly or Surviving Spouse"),NC_SINGLE("Single or Married Filing Separately"),
+		SC_MARRIED_SINGLE_RATE("Married but Withhold at higher Single Rate"),SC_MARRIED("Married"),SC_SINGLE("Single"),
+		UT_SINGLE("Single or Married filing separately"),UT_MARRIED("Married filing jointly or Qualifying widow(er)"),UT_HEAD_OF_HOUSEHOLD("Head of Household"),
+		GA_SINGLE("Single"),GA_SEPARATE_MARRIED_JOINT_BOTH_WORKING("Married Filing Separate or Married Filing Joint both spouses working"),GA_MARRIED_JOINT_ONE_WORKING("Married Filing Joint one spouse working"),GA_HEAD_OF_HOUSEHOLD("Head of Household"),
+		WI_SINGLE("Single"),WI_MARRIED("Married"),WI_MARRIED_SINGLE_RATE("Married but withhold at higher single rate"),
+		KS_SINGLE("Single"),KS_JOINT("Joint"),
+		VT_SINGLE("Single"),VT_MARRIED("Married/Civil Union Filing Jointly"),VT_MARRIED_FILING_SEPERATELY("Married/Civil Union Filing Separately"),VT_MARRIED_SINGLE_RATE("Married, but withhold at higher single rate"),
+		NJ_SINGLE("Single"), NJ_MARRIED_DP_JOINTLY("Married/Civil Union Couple Joint"),
+		NJ_MARRIED_SEPARATELY("Married/Civil Union Partner Separate"),
+		NJ_HEAD_OF_HOUSEHOLD("Head of Household"),
+		NJ_QUALIFIED_WIDOW("Qualifying Widow(er)/Surviving Civil Union Partner"),
+		CA_HEAD_OF_HOUSEHOLD("Head of Household"),
+		CA_MARRIED("Married (one income)"),
+		CA_SINGLE("Single or Married (with two or more incomes)"),
+		MN_SINGLE("Single, Married but legally separated or Spouse is a nonresident alien"),
+		MN_MARRIED("Married"),
+		IA_OTHER("Other (Including Single)"),
+		IA_HEAD_OF_HOUSEHOLD("Head of Household"),
+		IA_MARRIED_JOINTLY("Married filing jointly"),
+		IA_QUALIFIED_SPOUSE("Qualifying Surviving Spouse"),
+		ME_SINGLE("Single or Head of Household"),
+		ME_MARRIED("Married"),
+		ME_MARRIED_SINGLE_RATE("Married but withhold at higher single rate"),
+		ME_NON_RESIDENT_ALIEN("Nonresident alien"),
+		MN_MARRIED_SINGLE_RATE("Married but withhold at higher single rate"),
+		NY_MARRIED_WITHHOLD_SINGLE("Married but withhold as Single"), NY_SINGLE("Single") , NY_MARRIED("Married"), NY_HEAD_OF_HOUSEHOLD("Head of Household"),
+		NE_SINGLE("Single"),NE_MARRIED("Married Filing Jointly or Qualifying Widow(er)"),
+
+		LA_NO_DEDUCTION("No Deduction"),
+		LA_SINGLE_OR_MARRIED("Single or married filing separately"),
+		LA_MARRIED_FILING_JOINTLY_HOH("Married filing jointly, qualifying surviving spouse, or head of household"),
+
+		OR_SINGLE("Single"), OR_MARRIED("Married"), OR_MARRIED_SINGLE_RATE("Married but withhold at higher single rate"),
+		ND_SINGLE("Single"),ND_MARRIED("Married"),ND_MARRIED_SINGLE_RATE("Married but Withhold at higher Single Rate"),
+		ND_SINGLE_MARRIED_SEPARATELY("Single or Married filing separately"),ND_HEAD_OF_HOUSEHOLD("Head of household"),ND_MARRIED_JOINTLY("Married filing jointly  or Qualifying Surviving Spouse"),
+		ID_SINGLE("Single"),ID_MARRIED("Married"),ID_MARRIED_SINGLE_RATE("Married but Withhold at higher Single Rate"),
+		CO_SINGLE_OR_MARRIED_SEPARATELY("Single or Married filing separately"),CO_MARRIED_JOINTLY("Married filing jointly"),CO_HEAD_OF_HOUSEHOLD("Head of household"),
+		CO_SINGLE("Single"),CO_MARRIED("Married"),CO_MARRIED_SINGLE_RATE("Married but Withhold at higher Single Rate"),
+		HI_SINGLE("Single"),HI_MARRIED("Married"),HI_MARRIED_SINGLE_RATE("Married but Withhold at higher single rate"),HI_DISABLED("Certified disabled person"),HI_NMS("Nonresident Military Spouse"),
+		MT_SINGLE("Single or Married filing separately"), MT_MARRIED("Married filing jointly or qualifying surviving spouse"), MT_HEAD_OF_HOUSEHOLD("Head of household"), AR_SINGLE("Single"), AR_MARRIED_FILING_JOINTLY("Married Filing Jointly"), AR_HOH("Head of Household")
+	;
+	federalFilingStatus.add(FEDERAL_SINGLE);
+			federalFilingStatus.add(FEDERAL_MARRIED);
+			federalFilingStatus.add(FEDERAL_MARRIED_SINGLE);
+			federalFilingStatusEffective2020.add(FEDERAL_SINGLE_OR_MARRIED);
+			federalFilingStatusEffective2020.add(FEDERAL_MARRIED_JOINTLY);
+			federalFilingStatusEffective2020.add(FEDERAL_HEAD_OF_HOUSEHOLD);
+
+            arFilingStatus.add(AR_SINGLE);
+            arFilingStatus.add(AR_MARRIED_FILING_JOINTLY);
+            arFilingStatus.add(AR_HOH);
+
+            mdFilingStatus.add(MD_SINGLE);
+			mdFilingStatus.add(MD_MARRIED);
+			mdFilingStatus.add(MD_MARRIED_SINGLE);
+
+			msFilingStatus.add(MS_SINGLE);
+			msFilingStatus.add(MS_M1);
+			msFilingStatus.add(MS_M2);
+			msFilingStatus.add(MS_HEAD_OF_HOUSEHOLD);
+
+			dcFilingStatus.add(DC_SINGLE);
+			dcFilingStatus.add(DC_MARRIED_DP_JOINTLY);
+			dcFilingStatus.add(DC_MARRIED_SEPARATELY);
+//			dcFilingStatus.add(DC_SURVIVING_SPOUSE);
+			dcFilingStatus.add(DC_HEAD_OF_HOUSEHOLD);
+			dcFilingStatus.add(DC_MARRIED_DP_SEPARATELY);
+
+			nmFilingStatus.add(NM_SINGLE);
+			nmFilingStatus.add(NM_MARRIED);
+			nmFilingStatus.add(NM_MARRIED_SINGLE);
+			nmFilingStatus.add(NM_HEAD_OF_HOUSEHOLD);
+
+			moFilingStatus.add(MO_SINGLE);
+			moFilingStatus.add(MO_MARRIED);
+			moFilingStatus.add(MO_HEAD_OF_HOUSEHOLD);
+			
+			iaFilingStatus.add(IA_OTHER);
+			iaFilingStatus.add(IA_MARRIED_JOINTLY);
+			iaFilingStatus.add(IA_HEAD_OF_HOUSEHOLD);
+			iaFilingStatus.add(IA_QUALIFIED_SPOUSE);
+
+			alFilingStatus.add(AL_SINGLE);
+			alFilingStatus.add(AL_MARRIED);
+			alFilingStatus.add(AL_MARRIED_SEPARATELY);
+			alFilingStatus.add(AL_HEAD_OF_HOUSEHOLD);
+			alFilingStatus.add(AL_NO_PERSONAL_EXEMPTION);
+
+			deFilingStatus.add(DE_SINGLE);
+			deFilingStatus.add(DE_MARRIED);
+			deFilingStatus.add(DE_MARRIED_SINGLE_RATE);
+
+			okFilingStatus.add(OK_SINGLE);
+			okFilingStatus.add(OK_MARRIED);
+			okFilingStatus.add(OK_MARRIED_SINGLE_RATE);
+			okFilingStatus.add(OK_NRA);
+
+			ncFilingStatus.add(NC_SINGLE);
+			ncFilingStatus.add(NC_MARRIED);
+			ncFilingStatus.add(NC_HEAD_OF_HOUSEHOLD);
+
+			scFilingStatus.add(SC_SINGLE);
+			scFilingStatus.add(SC_MARRIED);
+			scFilingStatus.add(SC_MARRIED_SINGLE_RATE);
+
+			utFilingStatus.add(UT_SINGLE);
+			utFilingStatus.add(UT_MARRIED);
+			utFilingStatus.add(UT_HEAD_OF_HOUSEHOLD);
+
+			gaFilingStatus.add(GA_SINGLE);
+			gaFilingStatus.add(GA_SEPARATE_MARRIED_JOINT_BOTH_WORKING);
+			gaFilingStatus.add(GA_MARRIED_JOINT_ONE_WORKING);
+		//	gaFilingStatus.add(GA_MARRIED_SEPERATE);
+			gaFilingStatus.add(GA_HEAD_OF_HOUSEHOLD);
+
+			wiFilingStatus.add(WI_SINGLE);
+			wiFilingStatus.add(WI_MARRIED);
+			wiFilingStatus.add(WI_MARRIED_SINGLE_RATE);
+			
+			ksFilingStatus.add(KS_SINGLE);
+			ksFilingStatus.add(KS_JOINT);
+
+			njFilingStatus.add(NJ_SINGLE);
+			njFilingStatus.add(NJ_MARRIED_DP_JOINTLY);
+			njFilingStatus.add(NJ_MARRIED_SEPARATELY);
+			njFilingStatus.add(NJ_HEAD_OF_HOUSEHOLD);
+			njFilingStatus.add(NJ_QUALIFIED_WIDOW);
+
+			caFilingStatus.add(CA_SINGLE);
+			caFilingStatus.add(CA_MARRIED);
+			caFilingStatus.add(CA_HEAD_OF_HOUSEHOLD);
+
+			mnFilingStatus.add(MN_SINGLE);
+			mnFilingStatus.add(MN_MARRIED);
+			mnFilingStatus.add(MN_MARRIED_SINGLE_RATE);
+
+			nyFilingStatus.add(NY_SINGLE);
+			nyFilingStatus.add(NY_MARRIED);
+			nyFilingStatus.add(NY_HEAD_OF_HOUSEHOLD);
+			nyFilingStatus.add(NY_MARRIED_WITHHOLD_SINGLE);
+
+			neFilingStatus.add(NE_SINGLE);
+			neFilingStatus.add(NE_MARRIED);
+			
+//			laFilingStatus.add(LA_SINGLE);
+//			laFilingStatus.add(LA_MARRIED);
+//			laFilingStatus.add(LA_MARRIED_FILING_JOINTLY);
+//			laFilingStatus.add(LA_HEAD_OF_HOUSEHOLD);
+//			laFilingStatus.add(LA_QUALIFIED_SURVIVING_SPOUSE);
+
+			laFilingStatus.add(LA_NO_DEDUCTION);
+			laFilingStatus.add(LA_SINGLE_OR_MARRIED);
+			laFilingStatus.add(LA_MARRIED_FILING_JOINTLY_HOH);
+
+
+			vtFilingStatus.add(VT_SINGLE);
+			vtFilingStatus.add(VT_MARRIED);
+			vtFilingStatus.add(VT_MARRIED_FILING_SEPERATELY);
+			vtFilingStatus.add(VT_MARRIED_SINGLE_RATE);
+
+			orFilingStatus.add(OR_SINGLE);
+			orFilingStatus.add(OR_MARRIED);
+			orFilingStatus.add(OR_MARRIED_SINGLE_RATE);
+			
+			
+			meFilingStatus.add(ME_SINGLE);
+			meFilingStatus.add(ME_MARRIED);
+			meFilingStatus.add(ME_MARRIED_SINGLE_RATE);
+			meFilingStatus.add(ME_NON_RESIDENT_ALIEN);
+			ndFilingStatus.add(ND_SINGLE);
+			ndFilingStatus.add(ND_MARRIED);
+			ndFilingStatus.add(ND_MARRIED_SINGLE_RATE);
+			ndFilingStatusEffective2020.add(ND_SINGLE_MARRIED_SEPARATELY);
+			ndFilingStatusEffective2020.add(ND_HEAD_OF_HOUSEHOLD);
+			ndFilingStatusEffective2020.add(ND_MARRIED_JOINTLY);
+			
+			idFilingStatus.add(ID_SINGLE);
+			idFilingStatus.add(ID_MARRIED);
+			idFilingStatus.add(ID_MARRIED_SINGLE_RATE);
+
+			coFilingStatus.add(CO_SINGLE);
+			coFilingStatus.add(CO_MARRIED);
+			coFilingStatus.add(CO_MARRIED_SINGLE_RATE);
+
+			coFilingStatus2020.add(CO_SINGLE_OR_MARRIED_SEPARATELY);
+			coFilingStatus2020.add(CO_MARRIED_JOINTLY);
+			coFilingStatus2020.add(CO_HEAD_OF_HOUSEHOLD);
+
+			hiFilingStatus.add(HI_SINGLE);
+			hiFilingStatus.add(HI_MARRIED_SINGLE_RATE);
+			hiFilingStatus.add(HI_MARRIED);
+			hiFilingStatus.add(HI_DISABLED);
+			hiFilingStatus.add(HI_NMS);
+			
+			mtFilingStatus.add(MT_SINGLE);
+			mtFilingStatus.add(MT_MARRIED);
+			mtFilingStatus.add(MT_HEAD_OF_HOUSEHOLD);
+			
