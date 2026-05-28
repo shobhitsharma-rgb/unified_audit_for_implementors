@@ -365,10 +365,40 @@ def render_ui():
     st.title(APP_TITLE)
     st.caption(
         "Runs the ADP Census, Direct Deposit, Emergency Contact, and License audits "
-        "in a single pass against one Uzio HR Report and three ADP exports. Multi-row "
-        "data on both sides is fully audited (every bank account, every emergency "
-        "contact, every license)."
+        "in a single pass against one Uzio HR Report and up to three ADP exports."
     )
+
+    with st.expander("How this tool works"):
+        st.markdown(
+            """
+            **What you upload**
+            - **Uzio HR Report** — required. One comprehensive CSV that covers
+              census, banking, emergency contacts, and license info for every
+              employee. Same file the Paycom Consolidated Audit uses.
+            - **ADP files (any combination)** — at least one is required:
+              - *ADP Census Export* → drives the **Census audit**
+              - *ADP Direct Deposit Export* → drives the **Direct Deposit audit**
+              - *ADP Emergency + License Details Report* → drives **both** the
+                Emergency Contact audit and the License audit
+
+            **Partial runs are supported.** If you only have (e.g.) Census + DD
+            ready, run the tool with just those two — the missing audits are
+            reported as *Skipped — no file uploaded* in the Chief Summary and
+            no sheet for them appears in the workbook.
+
+            **What you get**
+            One chief workbook with a top-level `Chief_Summary` tab plus one
+            tab per sheet each standalone audit would have produced (census
+            comparison + every anomaly check, payment mixed-mode R4 with
+            highlighting, emergency contact comparison, license comparison).
+
+            **Multi-row data is fully audited** — every bank account, every
+            emergency contact, every license. The Uzio HR Report's multi-row
+            representation is preserved through to each audit; census is
+            deduplicated to one row per employee (correct, since census data
+            is per-employee).
+            """
+        )
 
     client_name = st.text_input("Client Name", value="Client", key="adp_cons_client")
 
@@ -376,21 +406,57 @@ def render_ui():
     uzio_file = st.file_uploader(
         "Uzio HR Report (.csv) — comprehensive export with Personal / Job / "
         "Payment Method / Emergency Contact / Additional Information sections",
-        type=["csv"], key="adp_cons_uzio_hr"
+        type=["csv"], key="adp_cons_uzio_hr",
+        help=(
+            "Download from Uzio → Reports → HR Reports → run the Master HR "
+            "Report and export as CSV. Headers are on row 2 with section "
+            "categories on row 1 (e.g. 'Job | Employee ID'). Required."
+        ),
     )
 
     st.markdown("### ADP")
     a1, a2, a3 = st.columns(3)
     with a1:
-        adp_census = st.file_uploader("ADP Census Export (.xlsx/.csv)",
-                                      type=["xlsx", "csv"], key="adp_cons_adp_cen")
+        adp_census = st.file_uploader(
+            "ADP Census Export (.xlsx/.csv)",
+            type=["xlsx", "csv"], key="adp_cons_adp_cen",
+            help=(
+                "ADP Workforce Now → Reports → Custom Reports → Employee "
+                "Census / Personnel Roster (the export that includes "
+                "Associate ID, Legal First/Last Name, FLSA Description, "
+                "Position Status, Hire Date, etc.). Drives the Census audit "
+                "(field-by-field comparison + FLSA Compliance, Salaried "
+                "Driver Exceptions, Active/Term Missing in Uzio, Duplicate "
+                "SSN, Hourly Rate Anomalies, Hourly Zero Hours, Data "
+                "Quality). Optional — leave blank to skip the Census audit."
+            ),
+        )
     with a2:
-        adp_dd = st.file_uploader("ADP Direct Deposit Export (.xlsx/.csv)",
-                                  type=["xlsx", "csv"], key="adp_cons_adp_dd")
+        adp_dd = st.file_uploader(
+            "ADP Direct Deposit Export (.xlsx/.csv)",
+            type=["xlsx", "csv"], key="adp_cons_adp_dd",
+            help=(
+                "ADP Workforce Now → Reports → Direct Deposit Information "
+                "(or your equivalent banking export). One row per bank "
+                "account (an employee with multiple accounts shows multiple "
+                "rows). Drives the Direct Deposit audit including the "
+                "mixed-mode 'Partial $ + Partial %' R4 verdict on the "
+                "Exception sheet. Optional."
+            ),
+        )
     with a3:
         adp_em = st.file_uploader(
             "ADP Emergency + License Details Report (.xlsx) — drives both audits",
-            type=["xlsx"], key="adp_cons_adp_em"
+            type=["xlsx"], key="adp_cons_adp_em",
+            help=(
+                "ADP Workforce Now → Reports → Employee License Details + "
+                "Emergency Contact (a single export that carries both "
+                "Contact Name / Relationship / Mobile Phone columns AND "
+                "License/Certification Code / Expiration Date columns). "
+                "Drives BOTH the Emergency Contact audit and the License "
+                "audit. Optional — without this file, both audits are "
+                "skipped."
+            ),
         )
 
     if st.button("Run Consolidated Audit", type="primary"):
