@@ -249,8 +249,13 @@ def _build_summary(census_dfs, payment_dfs, emergency_dfs, license_df,
                        ("Emergency Contact Audit", "emergency"),
                        ("License Audit", "license")]:
         err = errs.get(key)
-        rows.append({"Section": "Run Status", "Metric": label,
-                     "Value": "OK" if err is None else f"FAILED: {err}"})
+        if err is None:
+            value = "OK"
+        elif err == "SKIPPED":
+            value = "Skipped — no file uploaded"
+        else:
+            value = f"FAILED: {err}"
+        rows.append({"Section": "Run Status", "Metric": label, "Value": value})
 
     if errs.get("census") is None and census_dfs:
         s = census_dfs.get("Summary")
@@ -389,13 +394,14 @@ def render_ui():
         )
 
     if st.button("Run Consolidated Audit", type="primary"):
-        missing = []
-        if not uzio_file: missing.append("Uzio HR Report")
-        if not adp_census: missing.append("ADP Census")
-        if not adp_dd: missing.append("ADP Direct Deposit")
-        if not adp_em: missing.append("ADP Emergency + License")
-        if missing:
-            st.error("Please upload: " + ", ".join(missing))
+        # Uzio HR Report is required (every audit needs the Uzio side). Each ADP
+        # file is OPTIONAL — the matching audit runs only if its file is uploaded,
+        # otherwise it is reported as "Skipped" in the chief summary.
+        if not uzio_file:
+            st.error("Please upload the Uzio HR Report — it is required for any audit to run.")
+            return
+        if not (adp_census or adp_dd or adp_em):
+            st.error("Please upload at least one ADP file (Census, Direct Deposit, or Emergency + License).")
             return
 
         # Parse Uzio HR Report once.
@@ -406,20 +412,39 @@ def render_ui():
             st.error(f"Failed to parse Uzio HR Report: {exc}")
             return
 
+        SKIPPED = "SKIPPED"
         errs = {}
-        with st.spinner("Running Census audit..."):
-            census_dfs, errs["census"] = _safe(_run_census, df_master, adp_census)
-        with st.spinner("Running Direct Deposit (Payment) audit..."):
-            payment_dfs, errs["payment"] = _safe(_run_payment, df_master, adp_dd)
-        with st.spinner("Running Emergency Contact audit..."):
-            emergency_dfs, errs["emergency"] = _safe(_run_emergency, df_master, adp_em)
-        with st.spinner("Running License audit..."):
-            license_df, errs["license"] = _safe(_run_license, df_master, adp_em)
+        census_dfs = payment_dfs = emergency_dfs = None
+        license_df = None
+
+        if adp_census:
+            with st.spinner("Running Census audit..."):
+                census_dfs, errs["census"] = _safe(_run_census, df_master, adp_census)
+        else:
+            errs["census"] = SKIPPED
+
+        if adp_dd:
+            with st.spinner("Running Direct Deposit (Payment) audit..."):
+                payment_dfs, errs["payment"] = _safe(_run_payment, df_master, adp_dd)
+        else:
+            errs["payment"] = SKIPPED
+
+        if adp_em:
+            with st.spinner("Running Emergency Contact audit..."):
+                emergency_dfs, errs["emergency"] = _safe(_run_emergency, df_master, adp_em)
+            with st.spinner("Running License audit..."):
+                license_df, errs["license"] = _safe(_run_license, df_master, adp_em)
+        else:
+            errs["emergency"] = SKIPPED
+            errs["license"] = SKIPPED
 
         for label, key in [("Census", "census"), ("Direct Deposit", "payment"),
                             ("Emergency Contact", "emergency"), ("License", "license")]:
-            if errs.get(key):
-                st.error(f"{label} audit failed: {errs[key]}")
+            err = errs.get(key)
+            if err and err != SKIPPED:
+                st.error(f"{label} audit failed: {err}")
+            elif err == SKIPPED:
+                st.info(f"{label} audit skipped — no file uploaded.")
 
         summary_df = _build_summary(
             census_dfs or {}, payment_dfs or {}, emergency_dfs or {},
