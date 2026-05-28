@@ -82,8 +82,24 @@ elif platform == "Paycom":
 
 elif platform == "Universal Tools":
     st.sidebar.subheader("Universal Tools")
-    univ_tool = st.sidebar.radio("Select Tool", ["Selective Employee Extractor"], key="univ_nav")
-    
+    univ_tool = st.sidebar.radio("Select Tool", [
+        "Selective Employee Extractor",
+        "Paycom - Consolidated Audit",
+        "ADP - Consolidated Audit",
+    ], key="univ_nav")
+
     if univ_tool == "Selective Employee Extractor":
         from apps.common.employee_extractor import render_employee_extractor
         render_employee_extractor()
+
+    elif univ_tool == "Paycom - Consolidated Audit":
+        import importlib
+        from apps.common import paycom_combined_audit
+        importlib.reload(paycom_combined_audit)
+        paycom_combined_audit.render_ui()
+
+    elif univ_tool == "ADP - Consolidated Audit":
+        import importlib
+        from apps.common import adp_combined_audit
+        importlib.reload(adp_combined_audit)
+        adp_combined_audit.render_ui()
