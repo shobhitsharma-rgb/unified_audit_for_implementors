@@ -133,7 +133,10 @@ def run_sanity(adp_file):
         changes_df.to_excel(writer, sheet_name="Changes", index=False)
         df_fixed_clean.to_excel(writer, sheet_name="Corrected_Source", index=False)
 
-    csv_bytes = df_fixed_clean.to_csv(index=False).encode("utf-8-sig")
+    # Bare UTF-8 (NO BOM). Downstream APIs match the first header literally; a
+    # utf-8-sig BOM smuggles U+FEFF in front of it and the column lookup silently
+    # misses. Excel users should open the XLSX export instead.
+    csv_bytes = df_fixed_clean.to_csv(index=False).encode("utf-8")
 
     return out.getvalue(), csv_bytes, summary_df, changes_df
 

@@ -559,8 +559,12 @@ When you click **Download Corrected Source**, the following corrections are appl
                 from utils.audit_utils import generate_excel_with_audit
                 st.session_state[data_key] = {
                     "xlsx": generate_excel_with_audit(df_download, pd.DataFrame(audit_trail)),
-                    "csv": df_download.to_csv(index=False).encode("utf-8-sig"),
-                    "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8-sig")
+                    # NOTE: encode as plain UTF-8 (NO BOM). Downstream APIs that
+                    # ingest this CSV match the first header literally as
+                    # "Employee_Code"; a utf-8-sig BOM smuggles a U+FEFF in front
+                    # and the column lookup silently misses (Skyland incident, 2026).
+                    "csv": df_download.to_csv(index=False).encode("utf-8"),
+                    "audit": pd.DataFrame(audit_trail).to_csv(index=False).encode("utf-8")
                 }
 
         stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
