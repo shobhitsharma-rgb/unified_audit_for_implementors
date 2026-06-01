@@ -513,12 +513,13 @@ def run_sanity(adp_file):
         preview_df.to_excel(writer, sheet_name="Before_After", index=False)
         df_fixed_clean.to_excel(writer, sheet_name="Corrected_Source", index=False)
 
-    # CSV is intended for API ingestion: leave values plain. The XLSX export
-    # is the right path for Excel viewing — openpyxl writes long account /
-    # routing numbers as text cells, which Excel displays literally without
-    # converting to scientific notation. utf-8-sig writes a BOM so Excel can
-    # still read the CSV correctly if needed.
-    csv_bytes = df_fixed_clean.to_csv(index=False).encode("utf-8-sig")
+    # CSV is intended for API ingestion: leave values plain and write as bare
+    # UTF-8 (NO BOM). Downstream APIs match the first header literally, so a
+    # utf-8-sig BOM would smuggle U+FEFF in front of e.g. "Associate ID" and the
+    # column lookup silently misses. Excel users should open the XLSX export
+    # instead — openpyxl writes long account / routing numbers as text cells
+    # which Excel renders literally without scientific notation.
+    csv_bytes = df_fixed_clean.to_csv(index=False).encode("utf-8")
 
     return out.getvalue(), csv_bytes, summary_df, issues_df, preview_df
 
