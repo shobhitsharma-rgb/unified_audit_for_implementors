@@ -256,6 +256,7 @@ When you click **Download Corrected Source**, the following corrections are appl
     position_blanks = validation.get('position_blanks', pd.DataFrame())
     dol_status_blanks = validation.get('dol_status_blanks', pd.DataFrame())
     smart_driver_fixes = validation.get('smart_driver_fixes', pd.DataFrame())
+    zip_fixes = validation.get('zip_fixes', pd.DataFrame())
 
     # --- VALIDATION RESULTS (plain-English, two-section layout) ---
     render_validation_results(
@@ -267,6 +268,8 @@ When you click **Download Corrected Source**, the following corrections are appl
         email_fallbacks=email_fallbacks,
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
+        dol_status_blanks=dol_status_blanks,
+        zip_fixes=zip_fixes,
     )
 
     # --- Persistent Download Section ---

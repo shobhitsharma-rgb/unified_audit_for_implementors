@@ -535,6 +535,7 @@ def validate_source_data(df_source, resolved_field_map):
     position_blanks = []
     dol_status_blanks = []
     smart_driver_fixes = []
+    zip_fixes = []
 
     # Get column names 
     # Hourly Exempt / Salaried Non-Exempt flags
@@ -653,7 +654,9 @@ def validate_source_data(df_source, resolved_field_map):
         if type_col and type_col in df_source.columns:
             val = row.get(type_col)
             if pd.isna(val) or str(val).strip() == "":
-                missing.append("Employment Type (blank)")
+                # Blank Employment Type is ALWAYS auto-filled to "Full Time" on
+                # download (fix_dol_status, default-on). Report it as a fix, not a
+                # hard error — never add it to `missing`/red box.
                 dol_status_blanks.append({
                     'Employee ID': emp_ref,
                     'Current DOL Status': '(Blank)',
@@ -680,13 +683,43 @@ def validate_source_data(df_source, resolved_field_map):
 
         if job_title_col and job_title_col in df_source.columns:
             if not job_val:
-                missing.append("Job Title (blank)")
+                # Predict how the blank Job Title will actually be resolved on
+                # download so the UI reports it accurately (and only flags the
+                # genuinely-unfillable ones in the red box).
+                dv = row.get(dept_col) if dept_col and dept_col in df_source.columns else None
+                dept_val_jt = str(dv).strip() if pd.notna(dv) else ""
+                fv = row.get(flsa_col) if flsa_col and flsa_col in df_source.columns else None
+                flsa_str_jt = str(fv).strip().lower() if pd.notna(fv) else ""
+                is_flsa_blank_jt = flsa_str_jt in ("", "nan")
+                is_hourly_jt = ("hour" in pay_val) if pay_val else False
+                # fix_blank_jt_to_driver only fires once FLSA is Non-Exempt; a blank
+                # FLSA on an Hourly row is first filled to Non-Exempt, so treat that
+                # as Non-Exempt-to-be.
+                will_be_non_exempt = ("non-exempt" in flsa_str_jt) or ("non exempt" in flsa_str_jt) or is_flsa_blank_jt
 
-                position_blanks.append({
-                    'Employee ID': emp_ref,
-                    'Original Job Title': '(Blank)',
-                    'Suggestion': 'Fallback to Department'
-                })
+                if dept_val_jt and dept_val_jt.lower() != "nan":
+                    # Department column present (Paycom). If the department itself is a
+                    # Driver/hourly-only role AND FLSA is blank, the smart-driver path
+                    # handles it (and lists it) — don't double-list it here.
+                    if not (is_hourly_only_job_title(dept_val_jt) and is_flsa_blank_jt):
+                        position_blanks.append({
+                            'Employee ID': emp_ref,
+                            'Original Job Title': '(Blank)',
+                            'Resolution': 'department',
+                            'Suggestion': 'Fallback to Department'
+                        })
+                elif is_hourly_jt and will_be_non_exempt:
+                    # No Department column (ADP): a blank title on a Non-Exempt Hourly
+                    # employee is defaulted to "Driver" on download.
+                    position_blanks.append({
+                        'Employee ID': emp_ref,
+                        'Original Job Title': '(Blank)',
+                        'Resolution': 'driver-default',
+                        'Suggestion': "Default to 'Driver' (Non-Exempt Hourly)"
+                    })
+                else:
+                    # Cannot be auto-filled — genuinely needs a person to decide.
+                    missing.append("Job Title (blank)")
 
         # 4c. FLSA Blank Check (Special logic for Drivers / hourly-only roles)
         is_flsa_blank = False
@@ -736,12 +769,28 @@ def validate_source_data(df_source, resolved_field_map):
         if zip_col and zip_col in df_source.columns:
             zip_val = row.get(zip_col)
             if pd.isna(zip_val) or str(zip_val).strip() == "":
+                # A blank zip stays blank on download — genuinely needs attention.
                 missing.append("Zip Code (blank)")
             else:
-                # Strip to digits only
+                # Mirror the download-time _fix_zip_local transform exactly: keep
+                # digits, pad a 4-digit zip with a leading zero, trim to 5. If the
+                # result is a clean 5 digits the tool fixes it automatically; only
+                # what's still wrong afterwards (1-3 digits) stays in the red box.
                 import re
-                digits_only = re.sub(r'[^0-9]', '', str(zip_val).split('.')[0].split('-')[0])
-                if len(digits_only) < 5:
+                raw = str(zip_val).strip()
+                s = re.sub(r'[^0-9]', '', raw.split('.')[0].split('-')[0])
+                if len(s) == 4:
+                    s = '0' + s
+                fixed = s[:5]
+                if len(fixed) == 5:
+                    if fixed != raw:
+                        zip_fixes.append({
+                            'Employee ID': emp_ref,
+                            'Original Zip': raw,
+                            'Fixed Zip': fixed
+                        })
+                    # else already a clean 5-digit zip — nothing to report
+                else:
                     missing.append(f"Zip Code ('{zip_val}' is not 5 digits)")
         
         # 6. Salaried without Annual Salary
@@ -901,19 +950,12 @@ def validate_source_data(df_source, resolved_field_map):
                     'Has Termination Date': 'Yes' if (term_date_col and term_date_col in df_source.columns and pd.notna(row.get(term_date_col)) and str(row.get(term_date_col)).strip() != "") else 'No'
                 })
                 
-        # 11. Blank Position/Job Title tracking
-        if job_title_col and job_title_col in df_source.columns:
-            jt_val = row.get(job_title_col)
-            if pd.isna(jt_val) or str(jt_val).strip() == "":
-                # Try to find exactly department_desc column or similar for position fallback (Description only)
-                dept_desc_col = next((c for c in df_source.columns if str(c).lower().strip().replace(' ','_') == 'department_desc' or str(c).lower().strip() == 'department_description'), None)
-                        
-                dept_val = str(row.get(dept_desc_col, "")).strip() if dept_desc_col else ""
-                position_blanks.append({
-                    'Employee ID': emp_ref,
-                    'Name': get_emp_name(row),
-                    'Suggested Fix': dept_val if dept_val else "Not available (Department missing)"
-                })
+        # 11. (removed) Blank Position/Job Title tracking — this used to append a
+        # second, differently-shaped row to position_blanks for every blank job
+        # title, emitting a misleading "filled from department" / "Not available
+        # (Department missing)" suggestion even for ADP, which has no department
+        # column. Section 4 above now classifies blank job titles accurately
+        # (department / driver-default / unresolved); this duplicate is dropped.
 
         # 12. DOL_Status tracking (Paycom primarily, but safe to check if mapped)
         dol_col = None
@@ -972,6 +1014,7 @@ def validate_source_data(df_source, resolved_field_map):
         'position_blanks': pd.DataFrame(position_blanks),
         'dol_status_blanks': pd.DataFrame(dol_status_blanks),
         'smart_driver_fixes': pd.DataFrame(smart_driver_fixes),
+        'zip_fixes': pd.DataFrame(zip_fixes),
         'error_summary': error_summary
     }
 

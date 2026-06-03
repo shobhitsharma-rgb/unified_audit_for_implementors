@@ -146,6 +146,8 @@ def _validate_for_warnings(df_source, resolved_field_map):
     type_col = resolved_field_map.get('Employment Type')
     pay_type_col = resolved_field_map.get('Pay Type')
     job_title_col = resolved_field_map.get('Job Title')
+    flsa_col = resolved_field_map.get('FLSA Classification')
+    dept_col = resolved_field_map.get('Department')
     location_col = resolved_field_map.get('Work Location')
     hire_date_col = resolved_field_map.get('Hire Date')
     term_date_col = resolved_field_map.get('Termination Date')
@@ -176,12 +178,23 @@ def _validate_for_warnings(df_source, resolved_field_map):
                 if not is_standard:
                     problems.append(f"Non-standard Status ({str(sv).strip()})")
 
-        if type_col and type_col in df_source.columns and _is_blank(row.get(type_col)):
-            problems.append("Employment Type (blank)")
+        # Blank Employment Type is ALWAYS auto-filled to "Full Time" on download —
+        # not a warning (parity with the Streamlit red/green reclassification).
         if pay_type_col and pay_type_col in df_source.columns and _is_blank(row.get(pay_type_col)):
             problems.append("Pay Type (blank)")
         if job_title_col and job_title_col in df_source.columns and _is_blank(row.get(job_title_col)):
-            problems.append("Job Title (blank)")
+            # Only warn when the blank job title can't be auto-filled. It IS filled
+            # from the Department column (Paycom), or defaulted to "Driver" for a
+            # Non-Exempt Hourly employee (ADP) — those cases are silent auto-fixes.
+            dv = row.get(dept_col) if dept_col and dept_col in df_source.columns else None
+            has_dept = not _is_blank(dv)
+            fv = row.get(flsa_col) if flsa_col and flsa_col in df_source.columns else None
+            flsa_l = "" if _is_blank(fv) else str(fv).strip().lower()
+            pt = row.get(pay_type_col) if pay_type_col and pay_type_col in df_source.columns else None
+            is_hourly = (not _is_blank(pt)) and ("hour" in str(pt).strip().lower())
+            will_be_non_exempt = ("non-exempt" in flsa_l) or ("non exempt" in flsa_l) or flsa_l == ""
+            if not (has_dept or (is_hourly and will_be_non_exempt)):
+                problems.append("Job Title (blank)")
         if location_col and location_col in df_source.columns and _is_blank(row.get(location_col)):
             problems.append("Work Location (blank)")
 
