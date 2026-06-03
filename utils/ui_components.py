@@ -170,57 +170,6 @@ _FIELD_FRIENDLY = {
 }
 
 
-def render_schema_review(schema_review):
-    """Render an amber 'Please review' panel for schema-shape concerns that are
-    NOT hard errors: optional columns absent from the upload (their checks were
-    skipped) and unexpected columns present in the upload (passed through as-is).
-
-    `schema_review` is a dict with two keys:
-      - 'missing_optional': list of (expected_vendor_header, std_field_name)
-      - 'unexpected_extras': list of original column names from the upload that
-        don't match any entry in the vendor's field map
-
-    Non-blocking — both lists are shown for awareness only; the corrected file
-    is still produced. Pattern matches the existing validation UI: header card +
-    consolidated text + 'View the full list' expander.
-    """
-    missing = schema_review.get('missing_optional', []) if schema_review else []
-    extras = schema_review.get('unexpected_extras', []) if schema_review else []
-    if not missing and not extras:
-        return
-
-    st.markdown("""
-<div style="background:#fff8e6; border-left:5px solid #cc8e00; border-radius:8px; padding:14px 20px; margin:12px 0 4px 0;">
-<h4 style="color:#7a5500; margin:0 0 4px 0; border:none; padding:0;">⚠ Please review — schema differences</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">These do not block the sanity check. The corrected file will still be produced — but you may want to verify they are intentional before using the file downstream.</p>
-</div>
-""", unsafe_allow_html=True)
-
-    if missing:
-        n = len(missing)
-        st.markdown(
-            f"**{n} optional column{'s were' if n != 1 else ' was'} missing.** "
-            "Sanity checks for these fields were skipped silently. If you expect "
-            "downstream systems to see these fields, add them to the export."
-        )
-        with st.expander(f"View the {n} missing optional column{'s' if n != 1 else ''}"):
-            for hdr, std in missing:
-                friendly = _FIELD_FRIENDLY.get(std, std)
-                st.markdown(f"- **{hdr}** — the {friendly} column")
-
-    if extras:
-        n = len(extras)
-        st.markdown(
-            f"**{n} unexpected column{'s were' if n != 1 else ' was'} found in your file** "
-            "that the tool does not recognize. They were preserved in the corrected output, "
-            "but downstream APIs validating against a fixed schema may reject the file "
-            "(this is what broke the Skyland upload, May 2026)."
-        )
-        with st.expander(f"View the {n} unexpected column{'s' if n != 1 else ''}"):
-            for col in extras:
-                st.markdown(f"- `{col}`")
-
-
 def render_missing_column_error(missing):
     """Hard-stop error shown when an uploaded census file is missing required
     columns. `missing` is a list of (expected_header, standard_field_name)."""
