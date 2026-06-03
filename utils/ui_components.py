@@ -329,8 +329,7 @@ def _plain_english_issue(raw_issue):
 
 def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               anomalies, intern_corrections, email_fallbacks,
-                              smart_driver_fixes=None, position_blanks=None,
-                              dol_status_blanks=None):
+                              smart_driver_fixes=None, position_blanks=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
       2. 'Fixed automatically'   — corrections applied on download (green)
@@ -342,8 +341,6 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         smart_driver_fixes = pd.DataFrame()
     if position_blanks is None:
         position_blanks = pd.DataFrame()
-    if dol_status_blanks is None:
-        dol_status_blanks = pd.DataFrame()
 
     def _ids_str(df_in):
         if df_in is None or df_in.empty or 'Employee ID' not in df_in.columns:
@@ -365,8 +362,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
 
     has_hard = hard_errors is not None and not hard_errors.empty
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
-                   email_fallbacks, smart_driver_fixes, position_blanks,
-                   dol_status_blanks]
+                   email_fallbacks, smart_driver_fixes, position_blanks]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
     if not has_hard and not has_auto:
@@ -419,9 +415,6 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     if position_blanks is not None and not position_blanks.empty:
         n = _n(position_blanks)
         fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(position_blanks)}`")
-    if dol_status_blanks is not None and not dol_status_blanks.empty:
-        n = _n(dol_status_blanks)
-        fixes.append(f"**Employment type was blank** — we defaulted it to Full Time. {n} employee{'s' if n != 1 else ''}: `{_ids_str(dol_status_blanks)}`")
 
     if fixes:
         st.markdown("""

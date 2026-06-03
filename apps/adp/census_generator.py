@@ -290,7 +290,6 @@ When you click **Download Corrected Source**, the following corrections are appl
     anomalies = validation.get('anomalies', pd.DataFrame())
     smart_driver_fixes = validation.get('smart_driver_fixes', pd.DataFrame())
     position_blanks = validation.get('position_blanks', pd.DataFrame())
-    dol_status_blanks = validation.get('dol_status_blanks', pd.DataFrame())
 
     # --- VALIDATION RESULTS (plain-English, two-section layout) ---
     render_validation_results(
@@ -302,7 +301,6 @@ When you click **Download Corrected Source**, the following corrections are appl
         email_fallbacks=email_fallbacks,
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
-        dol_status_blanks=dol_status_blanks,
     )
 
     # --- SCHEMA REVIEW (amber, non-blocking) — surfaces optional columns that

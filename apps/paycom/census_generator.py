@@ -295,7 +295,6 @@ When you click **Download Corrected Source**, the following corrections are appl
         email_fallbacks=email_fallbacks,
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
-        dol_status_blanks=dol_status_blanks,
     )
 
     # --- SCHEMA REVIEW (amber, non-blocking) — surfaces optional columns absent
