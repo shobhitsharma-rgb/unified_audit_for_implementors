@@ -278,7 +278,8 @@ def _plain_english_issue(raw_issue):
 
 def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               anomalies, intern_corrections, email_fallbacks,
-                              smart_driver_fixes=None, position_blanks=None):
+                              smart_driver_fixes=None, position_blanks=None,
+                              dol_status_blanks=None, zip_fixes=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
       2. 'Fixed automatically'   — corrections applied on download (green)
@@ -290,6 +291,10 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         smart_driver_fixes = pd.DataFrame()
     if position_blanks is None:
         position_blanks = pd.DataFrame()
+    if dol_status_blanks is None:
+        dol_status_blanks = pd.DataFrame()
+    if zip_fixes is None:
+        zip_fixes = pd.DataFrame()
 
     def _ids_str(df_in):
         if df_in is None or df_in.empty or 'Employee ID' not in df_in.columns:
@@ -311,7 +316,8 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
 
     has_hard = hard_errors is not None and not hard_errors.empty
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
-                   email_fallbacks, smart_driver_fixes, position_blanks]
+                   email_fallbacks, smart_driver_fixes, position_blanks,
+                   dol_status_blanks, zip_fixes]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
     if not has_hard and not has_auto:
@@ -348,22 +354,58 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
             st.dataframe(hard_errors, hide_index=True, use_container_width=True)
 
     # --- SECTION 2: FIXED AUTOMATICALLY (no action needed) ---
+    # Every line here must describe what the download ACTUALLY does — no
+    # "filled from department" claims for a vendor (ADP) that has no department
+    # column. position_blanks / smart_driver_fixes carry a discriminator
+    # (Resolution / Issue) so each real fix gets its own accurate sentence.
+    def _subset(df_in, col, predicate):
+        if df_in is None or df_in.empty or col not in df_in.columns:
+            return pd.DataFrame()
+        return df_in[df_in[col].astype(str).apply(predicate)]
+
     fixes = []
     if flsa_blanks is not None and not flsa_blanks.empty:
         n = _n(flsa_blanks)
         fixes.append(f"**Exempt / Non-Exempt status was blank** — we set it from each employee's pay type (paid hourly → Non-Exempt, salaried → Exempt). {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_blanks)}`")
-    if smart_driver_fixes is not None and not smart_driver_fixes.empty:
-        n = _n(smart_driver_fixes)
-        fixes.append(f"**Driver / Walker employee was missing a job title or pay details** — we filled it in from their department. {n} employee{'s' if n != 1 else ''}: `{_ids_str(smart_driver_fixes)}`")
+
+    # Smart-driver fixes split by what was actually blank.
+    sd_flsa = _subset(smart_driver_fixes, 'Issue', lambda s: s.startswith('Blank FLSA'))
+    sd_dept = _subset(smart_driver_fixes, 'Issue', lambda s: s.startswith('Blank Position'))
+    if smart_driver_fixes is not None and not smart_driver_fixes.empty and 'Issue' not in smart_driver_fixes.columns:
+        # Defensive fallback if an older caller passes frames without the discriminator.
+        sd_flsa = smart_driver_fixes
+    if sd_flsa is not None and not sd_flsa.empty:
+        n = _n(sd_flsa)
+        fixes.append(f"**A Driver / Walker had a blank overtime status or pay type** — we set it to Non-Exempt and Hourly based on the Driver job title. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_flsa)}`")
+    if sd_dept is not None and not sd_dept.empty:
+        n = _n(sd_dept)
+        fixes.append(f"**Job title was blank and the department is a Driver role** — we filled in the Driver title and set Non-Exempt + Hourly. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_dept)}`")
+
     if intern_corrections is not None and not intern_corrections.empty:
         n = _n(intern_corrections)
         fixes.append(f'**Employment type "Intern" was changed to "Part-Time"**. {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(intern_corrections)}`")
     if email_fallbacks is not None and not email_fallbacks.empty:
         n = _n(email_fallbacks)
         fixes.append(f"**Work email was empty** — we used the employee's personal email instead. {n} employee{'s' if n != 1 else ''}: `{_ids_str(email_fallbacks)}`")
-    if position_blanks is not None and not position_blanks.empty:
-        n = _n(position_blanks)
-        fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(position_blanks)}`")
+
+    # Blank job title split by how it was actually resolved.
+    pb_dept = _subset(position_blanks, 'Resolution', lambda s: s == 'department')
+    pb_driver = _subset(position_blanks, 'Resolution', lambda s: s == 'driver-default')
+    if position_blanks is not None and not position_blanks.empty and 'Resolution' not in position_blanks.columns:
+        pb_dept = position_blanks  # older caller without the discriminator
+    if pb_dept is not None and not pb_dept.empty:
+        n = _n(pb_dept)
+        fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_dept)}`")
+    if pb_driver is not None and not pb_driver.empty:
+        n = _n(pb_driver)
+        fixes.append(f"**Job title was blank** — we set it to \"Driver\" (the employee is Non-Exempt and paid Hourly). {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_driver)}`")
+
+    if dol_status_blanks is not None and not dol_status_blanks.empty:
+        n = _n(dol_status_blanks)
+        fixes.append(f'**Employment type was blank** — we set it to "Full Time". {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(dol_status_blanks)}`")
+    if zip_fixes is not None and not zip_fixes.empty:
+        n = _n(zip_fixes)
+        fixes.append(f"**Home zip code wasn't 5 digits** — we padded a leading zero or trimmed extra digits to make it 5. {n} employee{'s' if n != 1 else ''}: `{_ids_str(zip_fixes)}`")
 
     if fixes:
         st.markdown("""
