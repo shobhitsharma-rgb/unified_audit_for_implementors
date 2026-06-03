@@ -279,7 +279,8 @@ def _plain_english_issue(raw_issue):
 def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               anomalies, intern_corrections, email_fallbacks,
                               smart_driver_fixes=None, position_blanks=None,
-                              dol_status_blanks=None, zip_fixes=None):
+                              dol_status_blanks=None, zip_fixes=None,
+                              status_fixes=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
       2. 'Fixed automatically'   — corrections applied on download (green)
@@ -295,6 +296,8 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         dol_status_blanks = pd.DataFrame()
     if zip_fixes is None:
         zip_fixes = pd.DataFrame()
+    if status_fixes is None:
+        status_fixes = pd.DataFrame()
 
     def _ids_str(df_in):
         if df_in is None or df_in.empty or 'Employee ID' not in df_in.columns:
@@ -317,7 +320,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     has_hard = hard_errors is not None and not hard_errors.empty
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
                    email_fallbacks, smart_driver_fixes, position_blanks,
-                   dol_status_blanks, zip_fixes]
+                   dol_status_blanks, zip_fixes, status_fixes]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
     if not has_hard and not has_auto:
@@ -366,7 +369,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     fixes = []
     if flsa_blanks is not None and not flsa_blanks.empty:
         n = _n(flsa_blanks)
-        fixes.append(f"**Exempt / Non-Exempt status was blank** — we set it from each employee's pay type (paid hourly → Non-Exempt, salaried → Exempt). {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_blanks)}`")
+        fixes.append(f"**FLSA status (Exempt / Non-Exempt) was blank** — so I set it from the pay type: hourly becomes Non-Exempt, salaried becomes Exempt. {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_blanks)}`")
 
     # Smart-driver fixes split by what was actually blank.
     sd_flsa = _subset(smart_driver_fixes, 'Issue', lambda s: s.startswith('Blank FLSA'))
@@ -376,17 +379,17 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         sd_flsa = smart_driver_fixes
     if sd_flsa is not None and not sd_flsa.empty:
         n = _n(sd_flsa)
-        fixes.append(f"**A Driver / Walker had a blank overtime status or pay type** — we set it to Non-Exempt and Hourly based on the Driver job title. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_flsa)}`")
+        fixes.append(f"**FLSA status and Pay Type were blank, but the employee is a Driver / Walker** — so I assumed Non-Exempt and Hourly respectively. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_flsa)}`")
     if sd_dept is not None and not sd_dept.empty:
         n = _n(sd_dept)
-        fixes.append(f"**Job title was blank and the department is a Driver role** — we filled in the Driver title and set Non-Exempt + Hourly. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_dept)}`")
+        fixes.append(f"**Job title was blank and the department is a Driver role** — so I filled in the Driver title and set it to Non-Exempt and Hourly. {n} employee{'s' if n != 1 else ''}: `{_ids_str(sd_dept)}`")
 
     if intern_corrections is not None and not intern_corrections.empty:
         n = _n(intern_corrections)
-        fixes.append(f'**Employment type "Intern" was changed to "Part-Time"**. {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(intern_corrections)}`")
+        fixes.append(f'**Employment type was "Intern"** — so I changed it to "Part-Time". {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(intern_corrections)}`")
     if email_fallbacks is not None and not email_fallbacks.empty:
         n = _n(email_fallbacks)
-        fixes.append(f"**Work email was empty** — we used the employee's personal email instead. {n} employee{'s' if n != 1 else ''}: `{_ids_str(email_fallbacks)}`")
+        fixes.append(f"**Work email was blank** — so I used the personal email instead. {n} employee{'s' if n != 1 else ''}: `{_ids_str(email_fallbacks)}`")
 
     # Blank job title split by how it was actually resolved.
     pb_dept = _subset(position_blanks, 'Resolution', lambda s: s == 'department')
@@ -395,17 +398,20 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         pb_dept = position_blanks  # older caller without the discriminator
     if pb_dept is not None and not pb_dept.empty:
         n = _n(pb_dept)
-        fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_dept)}`")
+        fixes.append(f"**Job title was blank** — so I filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_dept)}`")
     if pb_driver is not None and not pb_driver.empty:
         n = _n(pb_driver)
-        fixes.append(f"**Job title was blank** — we set it to \"Driver\" (the employee is Non-Exempt and paid Hourly). {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_driver)}`")
+        fixes.append(f"**Job title was blank, and the employee is Non-Exempt and Hourly** — so I set the job title to \"Driver\". {n} employee{'s' if n != 1 else ''}: `{_ids_str(pb_driver)}`")
 
     if dol_status_blanks is not None and not dol_status_blanks.empty:
         n = _n(dol_status_blanks)
-        fixes.append(f'**Employment type was blank** — we set it to "Full Time". {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(dol_status_blanks)}`")
+        fixes.append(f'**Employment type was blank** — so I set it to "Full Time". {n} employee' + ('s' if n != 1 else '') + f": `{_ids_str(dol_status_blanks)}`")
     if zip_fixes is not None and not zip_fixes.empty:
         n = _n(zip_fixes)
-        fixes.append(f"**Home zip code wasn't 5 digits** — we padded a leading zero or trimmed extra digits to make it 5. {n} employee{'s' if n != 1 else ''}: `{_ids_str(zip_fixes)}`")
+        fixes.append(f"**Home zip code was not 5 digits** — so I added a leading zero (or trimmed extra digits) to make it 5. {n} employee{'s' if n != 1 else ''}: `{_ids_str(zip_fixes)}`")
+    if status_fixes is not None and not status_fixes.empty:
+        n = _n(status_fixes)
+        fixes.append(f"**Employee was marked On Leave / Inactive but has a termination date** — so I set the status to Terminated. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_fixes)}`")
 
     if fixes:
         st.markdown("""
@@ -422,7 +428,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     reviews = []
     if flsa_corrections is not None and not flsa_corrections.empty:
         n = _n(flsa_corrections)
-        reviews.append(f"**Pay type and overtime setting don't match** — paid hourly but marked Exempt, or salaried but marked Non-Exempt. We left the data unchanged — please confirm which is correct. {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_corrections)}`")
+        reviews.append(f"**Pay Type and FLSA status don't match** — the employee is paid hourly but marked Exempt, or salaried but marked Non-Exempt. I left the values as they are — please confirm which one is correct. {n} employee{'s' if n != 1 else ''}: `{_ids_str(flsa_corrections)}`")
     # Status anomalies (On Leave / Inactive) — exclude any employee already
     # covered by the pay-type-mismatch line above so no one is listed twice.
     status_review = anomalies
@@ -433,13 +439,13 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         status_review = anomalies[~anomalies['Employee ID'].isin(fc_ids)]
     if status_review is not None and not status_review.empty:
         n = _n(status_review)
-        reviews.append(f"**Employee status needs a second look** — e.g. marked On Leave or Inactive with no end date. We left the data unchanged — please review each one. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_review)}`")
+        reviews.append(f"**Employee was marked On Leave / Inactive with no termination date** — so I set the status to Active. Please also mark this employee as 'exclude from payroll' in Uzio. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_review)}`")
 
     if reviews:
         st.markdown("""
 <div style="background:#fffaf3; border-left:5px solid #e8881f; border-radius:8px; padding:16px 20px; margin:16px 0 4px 0;">
 <h4 style="color:#6c3a00; margin:0 0 4px 0; border:none; padding:0;">👀 Please review before uploading</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">The tool spotted these but did not change them — they need a person to decide. They're noted in the Change Log too.</p>
+<p style="color:#46464f; margin:0; font-size:0.9rem;">Please review each of these before uploading — they either need a decision from you or a quick follow-up step in Uzio. They're noted in the Change Log too.</p>
 </div>
 """, unsafe_allow_html=True)
         with st.container(height=180, border=True):
