@@ -536,6 +536,7 @@ def validate_source_data(df_source, resolved_field_map):
     dol_status_blanks = []
     smart_driver_fixes = []
     zip_fixes = []
+    status_fixes = []
 
     # Get column names 
     # Hourly Exempt / Salaried Non-Exempt flags
@@ -618,9 +619,12 @@ def validate_source_data(df_source, resolved_field_map):
                 missing.append("Employment Status (blank)")
             else:
                 # A. Check for non-standard statuses (neither Active nor Terminated)
-                # We allow some common variants like 'A', 'T', 'Active', 'Terminated', 'Inactive'
-                is_standard = status_lower in ['a', 't', 'i'] or any(s in status_lower for s in ['active', 'terminated', 'inactive'])
-                
+                # We allow some common variants like 'A', 'T', 'Active', 'Terminated',
+                # 'Inactive', and any 'Leave' status. Leave/Inactive are auto-handled
+                # on download (-> Terminated if a term date exists, else Active), so
+                # they must NOT be flagged red here.
+                is_standard = status_lower in ['a', 't', 'i'] or any(s in status_lower for s in ['active', 'terminated', 'inactive', 'leave'])
+
                 if not is_standard or status_lower in ['a04l', 'a08v']:
                     missing.append(f"Non-standard Status ({status_val})")
 
@@ -628,18 +632,30 @@ def validate_source_data(df_source, resolved_field_map):
                 is_term = status_lower in ['t'] or any(s in status_lower for s in ['terminated'])
                 is_inactive = status_lower in ['i'] or any(s in status_lower for s in ['inactive'])
                 is_leave = 'leave' in status_lower
-                
+
                 if is_leave or is_inactive:
+                    # Mirror the download's fix_leave_to_active: a term date means the
+                    # employee is converted to Terminated (a clean fix -> green); no term
+                    # date means converted to Active with an exclude-from-payroll follow-up
+                    # in Uzio (-> amber review). Both must be surfaced, never silent.
+                    has_term = False
                     if term_date_col and term_date_col in df_source.columns:
                         tdate = row.get(term_date_col)
-                        if pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan":
-                            # No term date -> Suggest Active and warn to exclude from payroll
-                            anomalies.append({
-                                'Employee ID': emp_ref,
-                                'Name': get_emp_name(row),
-                                'Issue': f"{status_val} Employee",
-                                'Message': "Please make them excluded from payroll on Uzio"
-                            })
+                        has_term = not (pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan")
+                    if has_term:
+                        status_fixes.append({
+                            'Employee ID': emp_ref,
+                            'Name': get_emp_name(row),
+                            'Original Status': status_val,
+                            'Resolution': 'terminated'
+                        })
+                    else:
+                        anomalies.append({
+                            'Employee ID': emp_ref,
+                            'Name': get_emp_name(row),
+                            'Issue': f"{status_val} Employee",
+                            'Message': "Set to Active — please mark this employee as 'exclude from payroll' in Uzio"
+                        })
                 
                 if is_term:
                     if term_date_col and term_date_col in df_source.columns:
@@ -1015,6 +1031,7 @@ def validate_source_data(df_source, resolved_field_map):
         'dol_status_blanks': pd.DataFrame(dol_status_blanks),
         'smart_driver_fixes': pd.DataFrame(smart_driver_fixes),
         'zip_fixes': pd.DataFrame(zip_fixes),
+        'status_fixes': pd.DataFrame(status_fixes),
         'error_summary': error_summary
     }
 
