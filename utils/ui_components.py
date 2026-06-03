@@ -170,57 +170,6 @@ _FIELD_FRIENDLY = {
 }
 
 
-def render_schema_review(schema_review):
-    """Render an amber 'Please review' panel for schema-shape concerns that are
-    NOT hard errors: optional columns absent from the upload (their checks were
-    skipped) and unexpected columns present in the upload (passed through as-is).
-
-    `schema_review` is a dict with two keys:
-      - 'missing_optional': list of (expected_vendor_header, std_field_name)
-      - 'unexpected_extras': list of original column names from the upload that
-        don't match any entry in the vendor's field map
-
-    Non-blocking — both lists are shown for awareness only; the corrected file
-    is still produced. Pattern matches the existing validation UI: header card +
-    consolidated text + 'View the full list' expander.
-    """
-    missing = schema_review.get('missing_optional', []) if schema_review else []
-    extras = schema_review.get('unexpected_extras', []) if schema_review else []
-    if not missing and not extras:
-        return
-
-    st.markdown("""
-<div style="background:#fff8e6; border-left:5px solid #cc8e00; border-radius:8px; padding:14px 20px; margin:12px 0 4px 0;">
-<h4 style="color:#7a5500; margin:0 0 4px 0; border:none; padding:0;">⚠ Please review — schema differences</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">These do not block the sanity check. The corrected file will still be produced — but you may want to verify they are intentional before using the file downstream.</p>
-</div>
-""", unsafe_allow_html=True)
-
-    if missing:
-        n = len(missing)
-        st.markdown(
-            f"**{n} optional column{'s were' if n != 1 else ' was'} missing.** "
-            "Sanity checks for these fields were skipped silently. If you expect "
-            "downstream systems to see these fields, add them to the export."
-        )
-        with st.expander(f"View the {n} missing optional column{'s' if n != 1 else ''}"):
-            for hdr, std in missing:
-                friendly = _FIELD_FRIENDLY.get(std, std)
-                st.markdown(f"- **{hdr}** — the {friendly} column")
-
-    if extras:
-        n = len(extras)
-        st.markdown(
-            f"**{n} unexpected column{'s were' if n != 1 else ' was'} found in your file** "
-            "that the tool does not recognize. They were preserved in the corrected output, "
-            "but downstream APIs validating against a fixed schema may reject the file "
-            "(this is what broke the Skyland upload, May 2026)."
-        )
-        with st.expander(f"View the {n} unexpected column{'s' if n != 1 else ''}"):
-            for col in extras:
-                st.markdown(f"- `{col}`")
-
-
 def render_missing_column_error(missing):
     """Hard-stop error shown when an uploaded census file is missing required
     columns. `missing` is a list of (expected_header, standard_field_name)."""
@@ -329,8 +278,7 @@ def _plain_english_issue(raw_issue):
 
 def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               anomalies, intern_corrections, email_fallbacks,
-                              smart_driver_fixes=None, position_blanks=None,
-                              dol_status_blanks=None):
+                              smart_driver_fixes=None, position_blanks=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
       2. 'Fixed automatically'   — corrections applied on download (green)
@@ -342,8 +290,6 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         smart_driver_fixes = pd.DataFrame()
     if position_blanks is None:
         position_blanks = pd.DataFrame()
-    if dol_status_blanks is None:
-        dol_status_blanks = pd.DataFrame()
 
     def _ids_str(df_in):
         if df_in is None or df_in.empty or 'Employee ID' not in df_in.columns:
@@ -365,8 +311,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
 
     has_hard = hard_errors is not None and not hard_errors.empty
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
-                   email_fallbacks, smart_driver_fixes, position_blanks,
-                   dol_status_blanks]
+                   email_fallbacks, smart_driver_fixes, position_blanks]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
     if not has_hard and not has_auto:
@@ -419,9 +364,6 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     if position_blanks is not None and not position_blanks.empty:
         n = _n(position_blanks)
         fixes.append(f"**Job title was blank** — we filled it in from the department name. {n} employee{'s' if n != 1 else ''}: `{_ids_str(position_blanks)}`")
-    if dol_status_blanks is not None and not dol_status_blanks.empty:
-        n = _n(dol_status_blanks)
-        fixes.append(f"**Employment type was blank** — we defaulted it to Full Time. {n} employee{'s' if n != 1 else ''}: `{_ids_str(dol_status_blanks)}`")
 
     if fixes:
         st.markdown("""

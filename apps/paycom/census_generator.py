@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, render_sanity_disclaimer, render_schema_review, REQUIRED_CENSUS_FIELDS
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, render_sanity_disclaimer, REQUIRED_CENSUS_FIELDS
 
 APP_TITLE = "Paycom to Uzio Census Template Generator"
 
@@ -70,22 +70,12 @@ def norm_colname(c: str) -> str:
     return c.lower()
 
 def preprocess_paycom_file(paycom_file):
-    """Common logic for reading and normalizing Paycom file.
-
-    Returns a 5-tuple: (df, original_columns, norm_to_orig, resolved_field_map,
-    schema_review). schema_review is a dict with two keys used by the sanity-check
-    UI's amber 'Please review' panel:
-      - 'missing_optional': [(expected_vendor_header, std_field_name), ...] for
-        non-required map entries that weren't found in the upload.
-      - 'unexpected_extras': [original_column_name, ...] for columns present in
-        the upload that don't match any entry in PAYCOM_FIELD_MAP. (Skyland
-        incident, May 2026.)
-    """
+    """Common logic for reading and normalizing Paycom file."""
     # --- CRITICAL ERROR: Duplicate Column Check ---
     dupes = check_duplicate_columns(paycom_file)
     if dupes:
         render_duplicate_column_error(dupes)
-        return None, None, None, None, None
+        return None, None, None, None
 
     try:
         if paycom_file.name.lower().endswith('.csv'):
@@ -98,21 +88,20 @@ def preprocess_paycom_file(paycom_file):
             df_paycom = pd.read_excel(paycom_file, dtype=str)
     except Exception as e:
         st.error(f"Error reading file: {e}")
-        return None, None, None, None, None
+        return None, None, None, None
 
     # Save original column headers before normalization
     original_columns = list(df_paycom.columns)
-
+    
     # Normalize source columns
     df_paycom.columns = [norm_colname(c) for c in df_paycom.columns]
-
+    
     # Build mapping: normalized -> original (for restoring headers on download)
     norm_to_orig = dict(zip(df_paycom.columns, original_columns))
-
+    
     # Resolve field map
     resolved_field_map = {}
     missing_required = []
-    missing_optional = []
     for std_name, vendor_cols in PAYCOM_FIELD_MAP.items():
         found = False
         for vc in vendor_cols:
@@ -125,30 +114,13 @@ def preprocess_paycom_file(paycom_file):
             resolved_field_map[std_name] = norm_colname(vendor_cols[0])
             if std_name in REQUIRED_CENSUS_FIELDS:
                 missing_required.append((vendor_cols[0], std_name))
-            else:
-                missing_optional.append((vendor_cols[0], std_name))
 
     # --- CRITICAL ERROR: Missing required columns ---
     if missing_required:
         render_missing_column_error(missing_required)
-        return None, None, None, None, None
+        return None, None, None, None
 
-    # --- Schema review: unexpected extra columns (present in upload, NOT in map) ---
-    known_norm_cols = {
-        norm_colname(vc)
-        for vendor_cols in PAYCOM_FIELD_MAP.values()
-        for vc in vendor_cols
-    }
-    unexpected_extras = [
-        norm_to_orig.get(c, c) for c in df_paycom.columns
-        if c not in known_norm_cols and c.strip() != ""
-    ]
-
-    schema_review = {
-        'missing_optional': missing_optional,
-        'unexpected_extras': unexpected_extras,
-    }
-    return df_paycom, original_columns, norm_to_orig, resolved_field_map, schema_review
+    return df_paycom, original_columns, norm_to_orig, resolved_field_map
 
 def render_auto_fix_options(key_prefix):
     """All corrections are applied automatically — no user toggles needed."""
@@ -208,7 +180,7 @@ def render_census_sanity_check():
     file_paycom = st.file_uploader("Upload Paycom Census Export (.xlsx, .csv)", type=["xlsx", "csv"], key="paycom_sanity_upload")
     if not file_paycom: return
 
-    df_paycom, original_columns, norm_to_orig, resolved_field_map, schema_review = preprocess_paycom_file(file_paycom)
+    df_paycom, original_columns, norm_to_orig, resolved_field_map = preprocess_paycom_file(file_paycom)
     if df_paycom is None: return
 
     # --- PROVIDER MISMATCH DETECTION ---
@@ -295,14 +267,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         email_fallbacks=email_fallbacks,
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
-        dol_status_blanks=dol_status_blanks,
     )
-
-    # --- SCHEMA REVIEW (amber, non-blocking) — surfaces optional columns absent
-    # from the upload and unexpected columns present but not in the field map.
-    # Added after the Skyland incident (May 2026) where an extra column slipped
-    # through and the downstream API rejected the file.
-    render_schema_review(schema_review)
 
     # --- Persistent Download Section ---
     st.markdown("---")
@@ -630,7 +595,7 @@ def render_census_generator():
     paycom_file = st.file_uploader("Upload Paycom Census Export", type=["xlsx", "csv"], key="pc_gen_upload")
     if not paycom_file: return
 
-    df_paycom, _, _, resolved_field_map, _ = preprocess_paycom_file(paycom_file)
+    df_paycom, _, _, resolved_field_map = preprocess_paycom_file(paycom_file)
     if df_paycom is None: return
 
     fix_options = render_auto_fix_options("pc_gen")
@@ -693,7 +658,7 @@ def render_selective_census_generator():
     paycom_file = st.file_uploader("Upload Paycom Census Export", type=["xlsx", "csv"], key="pc_sel_upload")
     if not paycom_file: return
 
-    df_paycom, _, _, resolved_field_map, _ = preprocess_paycom_file(paycom_file)
+    df_paycom, _, _, resolved_field_map = preprocess_paycom_file(paycom_file)
     if df_paycom is None: return
 
     fix_options = render_auto_fix_options("pc_sel")

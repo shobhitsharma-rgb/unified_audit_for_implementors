@@ -2,7 +2,7 @@ import io
 import pandas as pd
 import streamlit as st
 from utils.audit_utils import generate_uzio_template, check_duplicate_columns, format_datetime_strings, is_hourly_only_job_title
-from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, render_sanity_disclaimer, render_schema_review, REQUIRED_CENSUS_FIELDS
+from utils.ui_components import inject_premium_styles, render_premium_header, render_validation_results, render_duplicate_column_error, render_missing_column_error, render_standardization_notice, render_sanity_disclaimer, REQUIRED_CENSUS_FIELDS
 
 APP_TITLE = "ADP to Uzio Census Template Generator"
 
@@ -23,13 +23,7 @@ ADP_FIELD_MAP = {
     'Hourly Pay Rate': ['Regular Pay Rate Amount'],
     'Working Hours': ['Standard Hours'],
     'Job Title': ['Job Title Description'],
-    # NOTE: 'Department' intentionally not mapped for ADP. ADP source census does
-    # NOT export a 'Department Description' column, and 'Home Department Code' is
-    # a completely unrelated identifier (a numeric/coded value, not the department
-    # name). Downstream Job-Title fallback and smart-driver detection in this file
-    # are guarded so they silently skip when Department is unresolved — that is
-    # the correct behavior for ADP. Do NOT re-add a 'Department' entry pointing
-    # to 'Home Department Code'; it will produce wrong fixes.
+    'Department': ['Department Description'],
     'Work Email': ['Work Contact: Work Email'],
     'Personal Email': ['Personal Contact: Personal Email'],
     'SSN': ['Tax ID (SSN)'],
@@ -40,9 +34,7 @@ ADP_FIELD_MAP = {
     'Address Line 1': ['Primary Address: Address Line 1'],
     'Address Line 2': ['Primary Address: Address Line 2'],
     'City': ['Primary Address: City'],
-    # ADP exports the home zip under two slightly different header variants
-    # depending on the report template — keep both so neither file hard-stops.
-    'Zip': ['Primary Address: Zip / Postal Code', 'Primary Address: Zip Code'],
+    'Zip': ['Primary Address: Zip / Postal Code'],
     'State': ['Primary Address: State / Territory Code'],
     'Mailing Address Line 1': ['Legal / Preferred Address: Address Line 1'],
     'Mailing Address Line 2': ['Legal / Preferred Address: Address Line 2'],
@@ -75,24 +67,12 @@ def norm_colname(c: str) -> str:
     return c.lower()
 
 def preprocess_adp_file(adp_file):
-    """Common logic for reading and normalizing ADP file.
-
-    Returns a 5-tuple: (df, original_columns, norm_to_orig, resolved_field_map,
-    schema_review). schema_review is a dict with two keys used by the sanity-check
-    UI's amber 'Please review' panel:
-      - 'missing_optional': [(expected_vendor_header, std_field_name), ...] for
-        non-required map entries that weren't found in the upload (silent-skip
-        check today, surfaced for visibility).
-      - 'unexpected_extras': [original_column_name, ...] for columns present in
-        the upload that don't match any entry in ADP_FIELD_MAP. Currently passed
-        through to the corrected output, where downstream APIs validating a fixed
-        schema may reject the file (Skyland incident, May 2026).
-    """
+    """Common logic for reading and normalizing ADP file."""
     # --- CRITICAL ERROR: Duplicate Column Check ---
     dupes = check_duplicate_columns(adp_file)
     if dupes:
         render_duplicate_column_error(dupes)
-        return None, None, None, None, None
+        return None, None, None, None
 
     try:
         if adp_file.name.lower().endswith('.csv'):
@@ -105,21 +85,20 @@ def preprocess_adp_file(adp_file):
             df_adp = pd.read_excel(adp_file, dtype=str)
     except Exception as e:
         st.error(f"Error reading file: {e}")
-        return None, None, None, None, None
+        return None, None, None, None
 
     # Save original column headers before normalization
     original_columns = list(df_adp.columns)
-
+    
     # Normalize source columns
     df_adp.columns = [norm_colname(c) for c in df_adp.columns]
-
+    
     # Build mapping: normalized -> original (for restoring headers on download)
     norm_to_orig = dict(zip(df_adp.columns, original_columns))
-
+    
     # Resolve field map
     resolved_field_map = {}
     missing_required = []
-    missing_optional = []
     for std_name, vendor_cols in ADP_FIELD_MAP.items():
         found = False
         for vc in vendor_cols:
@@ -132,30 +111,13 @@ def preprocess_adp_file(adp_file):
             resolved_field_map[std_name] = norm_colname(vendor_cols[0])
             if std_name in REQUIRED_CENSUS_FIELDS:
                 missing_required.append((vendor_cols[0], std_name))
-            else:
-                missing_optional.append((vendor_cols[0], std_name))
 
     # --- CRITICAL ERROR: Missing required columns ---
     if missing_required:
         render_missing_column_error(missing_required)
-        return None, None, None, None, None
+        return None, None, None, None
 
-    # --- Schema review: unexpected extra columns (present in upload, NOT in map) ---
-    known_norm_cols = {
-        norm_colname(vc)
-        for vendor_cols in ADP_FIELD_MAP.values()
-        for vc in vendor_cols
-    }
-    unexpected_extras = [
-        norm_to_orig.get(c, c) for c in df_adp.columns
-        if c not in known_norm_cols and c.strip() != ""
-    ]
-
-    schema_review = {
-        'missing_optional': missing_optional,
-        'unexpected_extras': unexpected_extras,
-    }
-    return df_adp, original_columns, norm_to_orig, resolved_field_map, schema_review
+    return df_adp, original_columns, norm_to_orig, resolved_field_map
 
 def render_auto_fix_options(key_prefix):
     """All corrections are applied automatically — no user toggles needed."""
@@ -215,7 +177,7 @@ def render_census_sanity_check():
     adp_file = st.file_uploader("Upload ADP Census Export (.xlsx, .csv)", type=["xlsx", "csv"], key="adp_sanity_upload")
     if not adp_file: return
 
-    df_adp, original_columns, norm_to_orig, resolved_field_map, schema_review = preprocess_adp_file(adp_file)
+    df_adp, original_columns, norm_to_orig, resolved_field_map = preprocess_adp_file(adp_file)
     if df_adp is None: return
 
     # --- PROVIDER MISMATCH DETECTION ---
@@ -290,7 +252,6 @@ When you click **Download Corrected Source**, the following corrections are appl
     anomalies = validation.get('anomalies', pd.DataFrame())
     smart_driver_fixes = validation.get('smart_driver_fixes', pd.DataFrame())
     position_blanks = validation.get('position_blanks', pd.DataFrame())
-    dol_status_blanks = validation.get('dol_status_blanks', pd.DataFrame())
 
     # --- VALIDATION RESULTS (plain-English, two-section layout) ---
     render_validation_results(
@@ -302,15 +263,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         email_fallbacks=email_fallbacks,
         smart_driver_fixes=smart_driver_fixes,
         position_blanks=position_blanks,
-        dol_status_blanks=dol_status_blanks,
     )
-
-    # --- SCHEMA REVIEW (amber, non-blocking) — surfaces optional columns that
-    # were absent from the upload and unexpected columns that were present but
-    # not recognized by the field map. Added after the Skyland incident where an
-    # extra column ("Personal Contact: Personal Mobile") slipped through and the
-    # downstream API rejected the file.
-    render_schema_review(schema_review)
 
     # --- Persistent Download Section ---
     st.markdown("---")
@@ -646,7 +599,7 @@ def render_census_generator():
     adp_file = st.file_uploader("Upload ADP Census Export", type=["xlsx", "csv"], key="adp_gen_upload")
     if not adp_file: return
 
-    df_adp, _, _, resolved_field_map, _ = preprocess_adp_file(adp_file)
+    df_adp, _, _, resolved_field_map = preprocess_adp_file(adp_file)
     if df_adp is None: return
 
     fix_options = render_auto_fix_options("adp_gen")
@@ -700,7 +653,7 @@ def render_selective_census_generator():
     adp_file = st.file_uploader("Upload ADP Census Export", type=["xlsx", "csv"], key="adp_sel_upload")
     if not adp_file: return
 
-    df_adp, _, _, resolved_field_map, _ = preprocess_adp_file(adp_file)
+    df_adp, _, _, resolved_field_map = preprocess_adp_file(adp_file)
     if df_adp is None: return
 
     fix_options = render_auto_fix_options("adp_sel")
