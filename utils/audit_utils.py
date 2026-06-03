@@ -653,7 +653,13 @@ def validate_source_data(df_source, resolved_field_map):
         if type_col and type_col in df_source.columns:
             val = row.get(type_col)
             if pd.isna(val) or str(val).strip() == "":
-                missing.append("Employment Type (blank)")
+                # NOTE: this is NOT a hard error — the download-time auto-fix at
+                # apps/{adp,paycom}/census_generator.py (fix_dol_status branch)
+                # always fills blank Employment Type with "Full Time". Tracking
+                # it in dol_status_blanks so the UI can surface it in the GREEN
+                # "Fixed automatically" section instead of the RED "Needs your
+                # attention" panel. Previously this also pushed into `missing`
+                # which produced a misleading double-flag.
                 dol_status_blanks.append({
                     'Employee ID': emp_ref,
                     'Current DOL Status': '(Blank)',
