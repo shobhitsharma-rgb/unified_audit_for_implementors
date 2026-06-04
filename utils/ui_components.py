@@ -280,7 +280,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               anomalies, intern_corrections, email_fallbacks,
                               smart_driver_fixes=None, position_blanks=None,
                               dol_status_blanks=None, zip_fixes=None,
-                              status_fixes=None):
+                              status_fixes=None, manager_hourly_flags=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
       2. 'Fixed automatically'   — corrections applied on download (green)
@@ -298,6 +298,8 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         zip_fixes = pd.DataFrame()
     if status_fixes is None:
         status_fixes = pd.DataFrame()
+    if manager_hourly_flags is None:
+        manager_hourly_flags = pd.DataFrame()
 
     def _ids_str(df_in):
         if df_in is None or df_in.empty or 'Employee ID' not in df_in.columns:
@@ -318,9 +320,12 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         return len(df_in)
 
     has_hard = hard_errors is not None and not hard_errors.empty
+    # Note: anomalies / flsa_corrections / manager_hourly_flags feed the amber
+    # "Please review" section — they're listed here only so an amber-only result
+    # still counts as "something to show" and isn't swallowed by the success banner.
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
                    email_fallbacks, smart_driver_fixes, position_blanks,
-                   dol_status_blanks, zip_fixes, status_fixes]
+                   dol_status_blanks, zip_fixes, status_fixes, manager_hourly_flags]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
     if not has_hard and not has_auto:
@@ -440,6 +445,9 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     if status_review is not None and not status_review.empty:
         n = _n(status_review)
         reviews.append(f"**Employee was marked On Leave / Inactive with no termination date** — so I set the status to Active. Please also mark this employee as 'exclude from payroll' in Uzio. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_review)}`")
+    if manager_hourly_flags is not None and not manager_hourly_flags.empty:
+        n = _n(manager_hourly_flags)
+        reviews.append(f"**A manager / non-delivery role is marked Hourly or Non-Exempt** — these roles are usually Salaried and Exempt, so this may be a data error. I left the values unchanged — please double-check each one. {n} employee{'s' if n != 1 else ''}: `{_ids_str(manager_hourly_flags)}`")
 
     if reviews:
         st.markdown("""
