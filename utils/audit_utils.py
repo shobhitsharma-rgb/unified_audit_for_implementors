@@ -391,6 +391,8 @@ HOURLY_ONLY_JOB_TITLES = {
     "delivery associate",
     "delivery associates",
     "driver -major appliance",
+    "e-biker",
+    "tso-pv driver",
 }
 
 # Whole-word, case-insensitive regex over the title set above.
@@ -537,6 +539,7 @@ def validate_source_data(df_source, resolved_field_map):
     smart_driver_fixes = []
     zip_fixes = []
     status_fixes = []
+    manager_hourly_flags = []
 
     # Get column names 
     # Hourly Exempt / Salaried Non-Exempt flags
@@ -830,6 +833,30 @@ def validate_source_data(df_source, resolved_field_map):
                             'Pay Type': str(row.get(pay_type_col, '')).strip()
                         })
         
+        # 6c. Non-delivery role marked Hourly / Non-Exempt — the INVERSE of the
+        # Driver rule. Owners / managers / overhead (any non-blank job title that is
+        # NOT in the hourly-only roster) are expected to be Salaried + Exempt, so if
+        # one comes in Hourly and/or Non-Exempt we FLAG it for review — we never
+        # change it (unlike Drivers, which are force-set). Blank titles are excluded
+        # (those are handled by the Driver-default / smart-driver logic above).
+        if job_title_col and job_title_col in df_source.columns and job_val and not is_driver:
+            flsa_raw_mh = row.get(flsa_col) if flsa_col and flsa_col in df_source.columns else None
+            flsa_mh = str(flsa_raw_mh).strip().lower() if pd.notna(flsa_raw_mh) else ""
+            is_hourly_mh = bool(pay_val) and ("hour" in pay_val)
+            is_non_exempt_mh = ("non-exempt" in flsa_mh) or ("non exempt" in flsa_mh)
+            if is_hourly_mh or is_non_exempt_mh:
+                marks = []
+                if is_hourly_mh:
+                    marks.append("Hourly")
+                if is_non_exempt_mh:
+                    marks.append("Non-Exempt")
+                manager_hourly_flags.append({
+                    'Employee ID': emp_ref,
+                    'Name': get_emp_name(row),
+                    'Job Title': str(row.get(job_title_col)).strip(),
+                    'Marked As': " + ".join(marks)
+                })
+
         # 7. Working Hours — no check. They are forced to 0 for every employee
         # at download time, so a blank or non-zero source value is not an issue.
 
@@ -1032,6 +1059,7 @@ def validate_source_data(df_source, resolved_field_map):
         'smart_driver_fixes': pd.DataFrame(smart_driver_fixes),
         'zip_fixes': pd.DataFrame(zip_fixes),
         'status_fixes': pd.DataFrame(status_fixes),
+        'manager_hourly_flags': pd.DataFrame(manager_hourly_flags),
         'error_summary': error_summary
     }
 

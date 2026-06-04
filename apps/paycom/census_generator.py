@@ -258,6 +258,7 @@ When you click **Download Corrected Source**, the following corrections are appl
     smart_driver_fixes = validation.get('smart_driver_fixes', pd.DataFrame())
     zip_fixes = validation.get('zip_fixes', pd.DataFrame())
     status_fixes = validation.get('status_fixes', pd.DataFrame())
+    manager_hourly_flags = validation.get('manager_hourly_flags', pd.DataFrame())
 
     # --- VALIDATION RESULTS (plain-English, two-section layout) ---
     render_validation_results(
@@ -272,6 +273,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         dol_status_blanks=dol_status_blanks,
         zip_fixes=zip_fixes,
         status_fixes=status_fixes,
+        manager_hourly_flags=manager_hourly_flags,
     )
 
     # --- Persistent Download Section ---
@@ -321,6 +323,36 @@ When you click **Download Corrected Source**, the following corrections are appl
                         'Comments': comment
                     })
                 
+                # Flag (NEVER change) non-delivery roles marked Hourly / Non-Exempt —
+                # owners / managers / overhead are expected Salaried + Exempt. This is
+                # the report-only inverse of the Driver rule. Run on the pristine source
+                # (before any FLSA/pay-type fill below) so the Change Log mirrors the
+                # on-screen amber flag exactly.
+                c_jt_mh = resolved_field_map.get('Job Title')
+                c_pt_mh = resolved_field_map.get('Pay Type')
+                c_flsa_mh = resolved_field_map.get('FLSA Classification')
+                if c_jt_mh and c_jt_mh in df_download.columns:
+                    for idx in df_download.index:
+                        jt_mh = str(df_download.at[idx, c_jt_mh]).strip()
+                        if not jt_mh or jt_mh.lower() == "nan":
+                            continue
+                        if is_hourly_only_job_title(jt_mh):
+                            continue  # delivery role — handled by the Driver rule
+                        pt_mh = str(df_download.at[idx, c_pt_mh]).strip() if (c_pt_mh and c_pt_mh in df_download.columns) else ""
+                        flsa_mh = str(df_download.at[idx, c_flsa_mh]).strip() if (c_flsa_mh and c_flsa_mh in df_download.columns) else ""
+                        hourly_mh = "hour" in pt_mh.lower()
+                        nonexempt_mh = ("non-exempt" in flsa_mh.lower()) or ("non exempt" in flsa_mh.lower())
+                        if hourly_mh or nonexempt_mh:
+                            marks = []
+                            if hourly_mh:
+                                marks.append("Hourly")
+                            if nonexempt_mh:
+                                marks.append("Non-Exempt")
+                            log_change(idx, "Pay Type / FLSA (review)",
+                                       f"Pay Type={pt_mh or '(blank)'}; FLSA={flsa_mh or '(blank)'}",
+                                       "(No change — please review)",
+                                       f"'{jt_mh}' is a non-delivery role marked {' + '.join(marks)}; these roles are usually Salaried/Exempt. Left unchanged — please verify in Uzio.")
+
                 # Apply Fixes
                 if fix_options.get('fix_position'):
                     c_job = resolved_field_map.get('Job Title')

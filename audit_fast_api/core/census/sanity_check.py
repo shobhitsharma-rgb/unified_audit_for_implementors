@@ -18,7 +18,7 @@ import io
 import re
 import pandas as pd
 
-from utils.audit_utils import norm_colname, norm_blank, norm_ssn_canonical
+from utils.audit_utils import norm_colname, norm_blank, norm_ssn_canonical, is_hourly_only_job_title
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +197,25 @@ def _validate_for_warnings(df_source, resolved_field_map):
                 problems.append("Job Title (blank)")
         if location_col and location_col in df_source.columns and _is_blank(row.get(location_col)):
             problems.append("Work Location (blank)")
+
+        # Non-delivery role marked Hourly / Non-Exempt — flag only (mirror of the
+        # Streamlit "manager rule"). Owners/managers/overhead are expected Salaried +
+        # Exempt; we never change them, just surface a warning. Blank titles excluded.
+        if job_title_col and job_title_col in df_source.columns:
+            jt_v = row.get(job_title_col)
+            if not _is_blank(jt_v) and not is_hourly_only_job_title(str(jt_v).strip()):
+                ptv = row.get(pay_type_col) if pay_type_col and pay_type_col in df_source.columns else None
+                fv2 = row.get(flsa_col) if flsa_col and flsa_col in df_source.columns else None
+                is_hr = (not _is_blank(ptv)) and ("hour" in str(ptv).strip().lower())
+                fl2 = "" if _is_blank(fv2) else str(fv2).strip().lower()
+                is_ne = ("non-exempt" in fl2) or ("non exempt" in fl2)
+                if is_hr or is_ne:
+                    mk = []
+                    if is_hr:
+                        mk.append("Hourly")
+                    if is_ne:
+                        mk.append("Non-Exempt")
+                    problems.append(f"Non-delivery role marked {' + '.join(mk)} — usually Salaried/Exempt, please review")
 
         # Date logic: hire_date <= term_date when both present
         if (hire_date_col and term_date_col and
