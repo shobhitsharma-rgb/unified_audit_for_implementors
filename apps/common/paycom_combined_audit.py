@@ -92,6 +92,66 @@ def company_name_from_uzio_master(df):
     s = s[s != ""]
     return s.iloc[0] if len(s) else ""
 
+
+def _norm_person_name(s):
+    """Lowercase, collapse internal whitespace — for matching person names."""
+    return " ".join(str(s).strip().casefold().split())
+
+
+def _first_last_name(s):
+    """First + last token only, normalized — tolerates a missing/extra middle name."""
+    toks = _norm_person_name(s).split()
+    return f"{toks[0]} {toks[-1]}" if len(toks) >= 2 else _norm_person_name(s)
+
+
+def build_manager_name_to_id(df):
+    """Build a name -> Uzio Employee ID resolver from a parsed Uzio Master/HR Report.
+
+    The report's 'Reporting Manager' column carries the manager's NAME, but every
+    vendor census stores a manager *ID*. Resolving the name against the roster
+    (the manager is themselves an employee row) lets the two be compared
+    apples-to-apples. Returns {'full': {...}, 'fl': {...}} with both a full-name
+    and a first+last key map. Ambiguous names (same name, different IDs) are
+    dropped so they resolve to "" rather than a wrong ID."""
+    if df is None or df.empty:
+        return {"full": {}, "fl": {}}
+    name_col = next((c for c in df.columns if str(c).endswith("|Full Name")), None)
+    id_col = next((c for c in df.columns if str(c).endswith("|Employee ID")), None)
+    if not name_col or not id_col:
+        return {"full": {}, "fl": {}}
+    full, fl, full_dupes, fl_dupes = {}, {}, set(), set()
+    for nm, eid in zip(df[name_col], df[id_col]):
+        eid = str(eid).strip() if pd.notna(eid) else ""
+        if not eid or pd.isna(nm) or not str(nm).strip():
+            continue
+        k = _norm_person_name(nm)
+        if k in full and full[k] != eid:
+            full_dupes.add(k)
+        else:
+            full[k] = eid
+        k2 = _first_last_name(nm)
+        if k2 in fl and fl[k2] != eid:
+            fl_dupes.add(k2)
+        else:
+            fl[k2] = eid
+    for k in full_dupes:
+        full.pop(k, None)
+    for k in fl_dupes:
+        fl.pop(k, None)
+    return {"full": full, "fl": fl}
+
+
+def resolve_manager_id(name, resolver):
+    """Resolve a manager NAME to a Uzio Employee ID via build_manager_name_to_id's
+    resolver; "" when blank, unknown, or ambiguous. Tries the exact full name first,
+    then a first+last fallback (handles middle-initial differences)."""
+    if not resolver or pd.isna(name) or not str(name).strip():
+        return ""
+    hit = resolver.get("full", {}).get(_norm_person_name(name))
+    if hit:
+        return hit
+    return resolver.get("fl", {}).get(_first_last_name(name), "")
+
 # --- Field Mappings ---
 # --- Field Mappings ---
 PAYCOM_CENSUS_MAP = {
@@ -347,6 +407,11 @@ def run_census_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
 
     u_map = {id: idx for idx, id in enumerate(df_uzio[u_id_col].map(norm_id))}
     p_map = {id: idx for idx, id in enumerate(df_paycom[p_id_col].map(norm_id))}
+
+    # The Uzio report's 'Reporting Manager' is a NAME; Paycom's Supervisor_Primary_Code
+    # is the manager's Paycom code. Resolve the name to the manager's Uzio Employee ID,
+    # then hop through the identity map to the Paycom code so the two are comparable.
+    mgr_resolver = build_manager_name_to_id(df_uzio)
     
     pc_keys_processed = set()
     uzio_keys = sorted(set(u_map.keys()))
@@ -387,6 +452,12 @@ def run_census_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
 
         for u_col, p_col in PAYCOM_CENSUS_MAP.items():
             u_val = norm_str(df_uzio.at[u_idx, u_col]) if u_col in df_uzio.columns else ""
+            if u_col == "Job|Reporting Manager":
+                # u_val is the manager's NAME — resolve to the manager's Uzio
+                # Employee ID, then hop to the Paycom code so it lines up with
+                # Supervisor_Primary_Code. Unresolved -> "" (can't be verified).
+                mgr_uz_id = norm_id(resolve_manager_id(u_val, mgr_resolver))
+                u_val = norm_str(uz_to_pc_id_map.get(mgr_uz_id, mgr_uz_id)) if mgr_uz_id and mgr_uz_id != "nan" else ""
             p_val = ""
             if p_idx is not None and p_col in df_paycom.columns:
                 p_val = norm_str(df_paycom.at[p_idx, p_col])

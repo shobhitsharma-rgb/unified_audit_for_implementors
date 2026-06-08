@@ -1,105 +1,308 @@
 import streamlit as st
+import importlib
 
-st.set_page_config(page_title="Unified Audit for Implementors", page_icon="⚙️", layout="wide")
+# Set Page Config (Must be first)
+st.set_page_config(page_title="AI Powered Audit Hub", layout="wide", page_icon="🤖")
 
-# Sidebar styling
+# Custom CSS for UI enhancements
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #050e39 0%, #0a1128 100%) !important;
+    /* Main container styling */
+    .main {
+        background-color: #f8f9fa;
     }
     
-    /* Target text elements but EXCLUDE Material Icons (which use spans/i with specific classes) */
-    [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] label {
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] {
+        background-color: #070738; /* Deep navy */
+    }
+    section[data-testid="stSidebar"] * {
+        color: #ffffff !important; /* White text */
+    }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #070738;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background-color: #e74c3c;
+        color: white;
+        border-radius: 8px;
+        font-weight: bold;
+        border: none;
+    }
+    .stButton > button:hover {
+        background-color: #c0392b;
+        color: white;
+    }
+    
+    /* Radio buttons in sidebar */
+    [data-testid="stSidebar"] .stRadio > div {
+        background-color: transparent;
+        margin-bottom: -15px; /* Compact spacing */
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        font-size: 15px;
+        padding: 4px 10px; /* Reduced padding */
+        border-radius: 5px;
         color: #ffffff !important;
+        transition: background-color 0.3s;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background-color: #1a1a4b;
+    }
+    [data-testid="stSidebar"] .stRadio p {
+        font-size: 15px; /* Consistent font size */
     }
     
-    /* Ensure radio buttons inside the sidebar remain visible */
-    [data-testid="stSidebar"] div[role="radiogroup"] label p {
-        color: #ffffff !important;
+    /* Ensure main area radio labels are visible (dark text) */
+    .main .stRadio p {
+        color: #070738 !important;
+        font-weight: bold;
+    }
+    .main .stRadio label {
+        color: #333333 !important;
+    }
+    .main .stRadio label:hover {
+        background-color: #f0f2f6 !important;
     }
     
-    /* Subtle divider */
-    [data-testid="stSidebarUserContent"] hr {
-        border-color: rgba(255, 255, 255, 0.1) !important;
+    /* Info box */
+    .stAlert {
+        border-radius: 8px;
+        padding: 0.5rem; /* Compact info box */
+    }
+    
+    /* Style for Provider Headers in Sidebar */
+    .provider-header {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #e2e8f0;
+        margin-top: 0.5rem;
+        margin-bottom: 0px;
+        border-bottom: 1px solid #4a5568;
+    /* AI Title Gradient */
+    .ai-title {
+        background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: bold;
+        font-size: 4.0rem;
+        padding-bottom: 10px;
+    }
+    
+    /* Sidebar specific override */
+    [data-testid="stSidebar"] .ai-title {
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar navigation
-st.sidebar.title("Data Migration Assistant")
-platform = st.sidebar.radio("Select Platform", ["ADP", "Paycom", "Universal Tools"])
+# ---------------------------------------------------------
+# Sidebar Navigation Grouping
+# ---------------------------------------------------------
+with st.sidebar:
+    st.markdown('<div class="ai-title">AI Powered<br>Audit Hub</div>', unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # 1. Select Provider
+    provider = st.radio("Select Provider", ["ADP", "Paycom", "Common Utilities"], index=0)
+    
+    
+    # 2. Dynamic Tool Selection based on Provider
+    tool_option = None
+    
+    if provider == "ADP":
+        st.markdown('<div class="provider-header">ADP Tools</div>', unsafe_allow_html=True)
+        tool_option = st.radio("Select ADP Tool", [
+            "ADP - Census Sanity Check",
+            "ADP - Census Audit",
+            "ADP - Selective Census Sync",
+            "ADP - Payment Method Sanity Check",
+            "ADP - Payment Audit",
+            "ADP - FIT/SIT Sanity Check",
+            "ADP - Withholding Audit",
+            "ADP - Deduction Audit",
+            "ADP - Prior Payroll Sanity Check",
+            "ADP - Prior Payroll Audit Tool",
+            "ADP - Prior Payroll Setup Helper",
+            "ADP - Payroll Setup Agent",
+            "ADP - Emergency Contact Audit",
+            "ADP - Time Off Tool",
+            "ADP - License Details Audit"
+        ], index=0, label_visibility="collapsed")
+        
+    elif provider == "Paycom":
+        st.markdown('<div class="provider-header">Paycom Tools</div>', unsafe_allow_html=True)
+        tool_option = st.radio("Select Paycom Tool", [
+            "Paycom - Census Sanity Check",
+            "Paycom - Census Audit",
+            "Paycom - Selective Census Sync",
+            "Paycom - Withholding Audit",
+            "Paycom - Payment Audit",
+            "Paycom - Deduction Audit",
+            "Paycom - Prior Payroll Setup Helper",
+            "Paycom - Prior Payroll Audit Tool",
+            "Paycom - Emergency Contact Audit",
+            "Paycom - Time Off Tool"
+        ], index=0, label_visibility="collapsed")
+        
+    elif provider == "Common Utilities":
+        st.markdown('<div class="provider-header">Universal Tools</div>', unsafe_allow_html=True)
+        tool_option = st.radio("Select Universal Tool", [
+            "Selective Employee Extractor",
+            "Paycom - Consolidated Audit",
+            "ADP - Consolidated Audit"
+        ], index=0, label_visibility="collapsed")
 
-if platform == "ADP":
-    st.sidebar.subheader("ADP Tools")
-    adp_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Method Sanity", "Payment Audit", "Withholding Audit", "FIT/SIT Sanity", "Emergency Audit", "License Audit"], key="adp_nav")
+    # Footer
+    st.markdown("---")
+    st.caption("v2.4 | Unified Platform")
 
-    if adp_tool == "Census Sanity":
-        from apps.adp.census_generator import render_census_sanity_check
-        render_census_sanity_check()
-    elif adp_tool == "Payment Method Sanity":
-        from apps.adp.payment_method_sanity import render_ui
-        render_ui()
-    elif adp_tool == "FIT/SIT Sanity":
-        from apps.adp.fit_sit_sanity import render_ui
-        render_ui()
-    elif adp_tool == "Census Audit":
-        from apps.adp.census_audit import render_ui
-        render_ui()
-    elif adp_tool == "Payment Audit":
-        from apps.adp.payment_audit import render_ui
-        render_ui()
-    elif adp_tool == "Withholding Audit":
-        from apps.adp.withholding_audit import render_ui
-        render_ui()
-    elif adp_tool == "Emergency Audit":
-        from apps.adp.emergency_audit import render_ui
-        render_ui()
-    elif adp_tool == "License Audit":
-        from apps.adp.license_audit import render_ui
-        render_ui()
+# ---------------------------------------------------------
+# Router Logic
+# ---------------------------------------------------------
+if tool_option == "ADP - Deduction Audit":
+    from apps.adp import deduction_audit
+    importlib.reload(deduction_audit) 
+    deduction_audit.render_ui()
 
-elif platform == "Paycom":
-    st.sidebar.subheader("Paycom Tools")
-    paycom_tool = st.sidebar.radio("Select Tool", ["Census Sanity", "Census Audit", "Payment Audit", "Emergency Audit"], key="paycom_nav")
+elif tool_option == "ADP - Census Audit":
+    from apps.adp import census_audit
+    importlib.reload(census_audit)
+    census_audit.render_ui()
 
-    if paycom_tool == "Census Sanity":
-        from apps.paycom.census_generator import render_census_sanity_check
-        render_census_sanity_check()
-    elif paycom_tool == "Census Audit":
-        from apps.paycom.census_audit import render_ui
-        render_ui()
-    elif paycom_tool == "Payment Audit":
-        from apps.paycom.payment_audit import render_ui
-        render_ui()
-    elif paycom_tool == "Emergency Audit":
-        from apps.paycom.emergency_audit import render_ui
-        render_ui()
+elif tool_option == "ADP - Census Sanity Check":
+    from apps.adp import census_generator
+    importlib.reload(census_generator)
+    census_generator.render_census_sanity_check()
 
-elif platform == "Universal Tools":
-    st.sidebar.subheader("Universal Tools")
-    univ_tool = st.sidebar.radio("Select Tool", [
-        "Selective Employee Extractor",
-        "Paycom - Consolidated Audit",
-        "ADP - Consolidated Audit",
-    ], key="univ_nav")
+elif tool_option == "ADP - Selective Census Sync":
+    from apps.adp import census_generator
+    importlib.reload(census_generator)
+    census_generator.render_selective_census_generator()
 
-    if univ_tool == "Selective Employee Extractor":
-        from apps.common.employee_extractor import render_employee_extractor
-        render_employee_extractor()
+elif tool_option == "ADP - Payment Audit":
+    from apps.adp import payment_audit
+    importlib.reload(payment_audit)
+    payment_audit.render_ui()
 
-    elif univ_tool == "Paycom - Consolidated Audit":
-        import importlib
-        from apps.common import paycom_combined_audit
-        importlib.reload(paycom_combined_audit)
-        paycom_combined_audit.render_ui()
+elif tool_option == "ADP - Payment Method Sanity Check":
+    from apps.adp import payment_method_sanity
+    importlib.reload(payment_method_sanity)
+    payment_method_sanity.render_ui()
 
-    elif univ_tool == "ADP - Consolidated Audit":
-        import importlib
-        from apps.common import adp_combined_audit
-        importlib.reload(adp_combined_audit)
-        adp_combined_audit.render_ui()
+elif tool_option == "ADP - Emergency Contact Audit":
+    from apps.adp import emergency_audit
+    importlib.reload(emergency_audit)
+    emergency_audit.render_ui()
+
+elif tool_option == "ADP - Time Off Tool":
+    from apps.adp import timeoff_audit
+    importlib.reload(timeoff_audit)
+    timeoff_audit.render_ui()
+
+elif tool_option == "ADP - License Details Audit":
+    from apps.adp import license_audit
+    importlib.reload(license_audit)
+    license_audit.render_ui()
+
+elif tool_option == "ADP - Prior Payroll Audit Tool":
+    from apps.adp import total_comparison
+    importlib.reload(total_comparison)
+    total_comparison.render_ui()
+
+elif tool_option == "ADP - Prior Payroll Sanity Check":
+    from apps.adp import prior_payroll_sanity
+    importlib.reload(prior_payroll_sanity)
+    prior_payroll_sanity.render_ui()
+
+elif tool_option == "ADP - Prior Payroll Setup Helper":
+    from apps.adp import prior_payroll_setup_helper
+    importlib.reload(prior_payroll_setup_helper)
+    prior_payroll_setup_helper.render_ui()
+
+elif tool_option == "ADP - Payroll Setup Agent":
+    from apps.adp import payroll_setup_agent
+    importlib.reload(payroll_setup_agent)
+    payroll_setup_agent.render_ui()
+
+elif tool_option == "Paycom - Census Audit":
+    from apps.paycom import census_audit
+    importlib.reload(census_audit)
+    census_audit.render_ui()
+
+elif tool_option == "Paycom - Census Sanity Check":
+    from apps.paycom import census_generator
+    importlib.reload(census_generator)
+    census_generator.render_census_sanity_check()
+
+elif tool_option == "Paycom - Selective Census Sync":
+    from apps.paycom import census_generator
+    importlib.reload(census_generator)
+    census_generator.render_selective_census_generator()
+
+elif tool_option == "Paycom - Withholding Audit":
+    from apps.paycom import withholding_audit
+    importlib.reload(withholding_audit)
+    withholding_audit.render_ui()
+
+elif tool_option == "Paycom - Payment Audit":
+    from apps.paycom import payment_audit
+    importlib.reload(payment_audit)
+    payment_audit.render_ui()
+
+elif tool_option == "Paycom - Deduction Audit":
+    from apps.paycom import deduction_audit
+    importlib.reload(deduction_audit)
+    deduction_audit.render_ui()
+
+elif tool_option == "Paycom - Prior Payroll Setup Helper":
+    from apps.paycom import prior_payroll_setup_helper
+    importlib.reload(prior_payroll_setup_helper)
+    prior_payroll_setup_helper.render_ui()
+
+elif tool_option == "ADP - Withholding Audit":
+    from apps.adp import withholding_audit
+    importlib.reload(withholding_audit)
+    withholding_audit.render_ui()
+
+elif tool_option == "ADP - FIT/SIT Sanity Check":
+    from apps.adp import fit_sit_sanity
+    importlib.reload(fit_sit_sanity)
+    fit_sit_sanity.render_ui()
+
+elif tool_option == "Paycom - Emergency Contact Audit":
+    from apps.paycom import emergency_audit
+    importlib.reload(emergency_audit)
+    emergency_audit.render_ui()
+
+elif tool_option == "Paycom - Time Off Tool":
+    from apps.paycom import timeoff_audit
+    importlib.reload(timeoff_audit)
+    timeoff_audit.render_ui()
+
+elif tool_option == "Paycom - Prior Payroll Audit Tool":
+    from apps.paycom import total_comparison
+    importlib.reload(total_comparison)
+    total_comparison.render_ui()
+
+elif tool_option == "Selective Employee Extractor":
+    from apps.common import employee_extractor
+    importlib.reload(employee_extractor)
+    employee_extractor.render_employee_extractor()
+
+elif tool_option == "Paycom - Consolidated Audit":
+    from apps.common import paycom_combined_audit
+    importlib.reload(paycom_combined_audit)
+    paycom_combined_audit.render_ui()
+
+elif tool_option == "ADP - Consolidated Audit":
+    from apps.common import adp_combined_audit
+    importlib.reload(adp_combined_audit)
+    adp_combined_audit.render_ui()

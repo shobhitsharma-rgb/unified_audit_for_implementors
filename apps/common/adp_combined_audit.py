@@ -28,6 +28,8 @@ import streamlit as st
 from apps.common.paycom_combined_audit import (
     read_uzio_master,
     company_name_from_uzio_master,
+    build_manager_name_to_id,
+    resolve_manager_id,
 )
 
 APP_TITLE = "ADP - Consolidated Audit"
@@ -135,6 +137,14 @@ def _adapt_census(df_master: pd.DataFrame) -> io.BytesIO:
     (census is per-employee data; HR Report multi-rows carry banking/emergency
     duplication which we don't want here)."""
     df = _project_and_rename(df_master, _CENSUS_COL_MAP)
+    # The HR Report's 'Reporting Manager' is the manager's NAME; the census audit
+    # compares 'Reporting Manager ID' against ADP's Reports To Associate ID. Resolve
+    # the name to the manager's Employee ID (== ADP Associate ID) so the comparison
+    # is ID-vs-ID; unresolved names become blank rather than a false mismatch.
+    if "Reporting Manager ID" in df.columns:
+        resolver = build_manager_name_to_id(df_master)
+        df["Reporting Manager ID"] = df["Reporting Manager ID"].map(
+            lambda nm: resolve_manager_id(nm, resolver))
     df = df.drop_duplicates(subset=["Employee ID*"], keep="first").reset_index(drop=True)
     df["Full Name"] = _full_name_series(df_master.drop_duplicates(
         subset=["Job|Employee ID"], keep="first").reset_index(drop=True))
