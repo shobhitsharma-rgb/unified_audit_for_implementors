@@ -2,14 +2,14 @@
 
 Runs the four standalone ADP audits — Census, Direct Deposit (Payment), Emergency
 Contact, and License — in a single pass against ONE Uzio HR Report + three ADP
-exports, and produces one chief workbook.
+exports, and produces one consolidated workbook.
 
 Architecture: the standalone tools own all audit logic, including every anomaly
 check (FLSA Compliance, Salaried Driver Exception, mixed-mode R4 payment, dup SSN,
 active/terminated missing in Uzio, hourly-rate anomalies, hourly-zero-hours, ...).
 This module just reshapes the Uzio HR Report into the file shape each standalone
 expects, calls compute_audit_dataframes() on each, and stitches the resulting
-sheets into the chief workbook. Standalone tools stay completely untouched.
+sheets into the consolidated workbook. Standalone tools stay completely untouched.
 
 UI: 1 Uzio uploader (HR Report — same comprehensive CSV the Paycom consolidator
 uses) + 3 ADP uploaders (Census, Direct Deposit, combined Emergency+License).
@@ -232,96 +232,19 @@ def _run_license(df_master, adp_file):
 
 
 # ---------------------------------------------------------------------------
-# Summary + workbook stitching
+# Workbook stitching
 # ---------------------------------------------------------------------------
 
-def _count(df, column, predicate):
-    if df is None or df.empty or column not in df.columns:
-        return 0
-    return int(df[column].apply(predicate).sum())
-
-
-def _build_summary(census_dfs, payment_dfs, emergency_dfs, license_df,
-                   errs) -> pd.DataFrame:
-    rows = []
-    for label, key in [("Census Audit", "census"),
-                       ("Direct Deposit (Payment) Audit", "payment"),
-                       ("Emergency Contact Audit", "emergency"),
-                       ("License Audit", "license")]:
-        err = errs.get(key)
-        if err is None:
-            value = "OK"
-        elif err == "SKIPPED":
-            value = "Skipped — no file uploaded"
-        else:
-            value = f"FAILED: {err}"
-        rows.append({"Section": "Run Status", "Metric": label, "Value": value})
-
-    if errs.get("census") is None and census_dfs:
-        s = census_dfs.get("Summary")
-        if s is not None and not s.empty:
-            for _, r in s.iterrows():
-                rows.append({"Section": "Census", "Metric": str(r["Metric"]),
-                             "Value": r["Value"]})
-
-    if errs.get("payment") is None and payment_dfs:
-        df_cmp = payment_dfs.get("Comparison_Detail", pd.DataFrame())
-        df_exc = payment_dfs.get("Exception_Mixed_Mode", pd.DataFrame())
-        rows.append({"Section": "Direct Deposit", "Metric": "Comparison rows",
-                     "Value": int(len(df_cmp))})
-        rows.append({"Section": "Direct Deposit", "Metric": "Data Mismatches",
-                     "Value": _count(df_cmp, "Status",
-                                     lambda v: "mismatch" in str(v).lower())})
-        rows.append({"Section": "Direct Deposit", "Metric": "Mixed-Mode Exception rows",
-                     "Value": int(len(df_exc))})
-        rows.append({"Section": "Direct Deposit", "Metric": "Mixed-Mode (Corrected Setup)",
-                     "Value": _count(df_exc, "Status",
-                                     lambda v: "corrected setup" in str(v).lower())})
-        rows.append({"Section": "Direct Deposit", "Metric": "Mixed-Mode Mismatches",
-                     "Value": _count(df_exc, "Status",
-                                     lambda v: "mismatch (mixed mode)" in str(v).lower())})
-
-    if errs.get("emergency") is None and emergency_dfs:
-        df_em = emergency_dfs.get("Emergency_Contact_Audit", pd.DataFrame())
-        rows.append({"Section": "Emergency Contact", "Metric": "Comparison rows",
-                     "Value": int(len(df_em))})
-        rows.append({"Section": "Emergency Contact", "Metric": "Data Mismatches",
-                     "Value": _count(df_em, "Status",
-                                     lambda v: str(v).strip() == "Data Mismatch")})
-        rows.append({"Section": "Emergency Contact", "Metric": "Missing in Uzio",
-                     "Value": _count(df_em, "Status",
-                                     lambda v: "missing in uzio" in str(v).lower())})
-        rows.append({"Section": "Emergency Contact", "Metric": "Missing in ADP",
-                     "Value": _count(df_em, "Status",
-                                     lambda v: "missing in adp" in str(v).lower())})
-
-    if errs.get("license") is None and license_df is not None and not license_df.empty:
-        rows.append({"Section": "License", "Metric": "Comparison rows",
-                     "Value": int(len(license_df))})
-        rows.append({"Section": "License", "Metric": "Data Match",
-                     "Value": _count(license_df, "Status",
-                                     lambda v: str(v).strip() == "Data Match")})
-        rows.append({"Section": "License", "Metric": "Data Mismatch",
-                     "Value": _count(license_df, "Status",
-                                     lambda v: str(v).strip() == "Data Mismatch")})
-        rows.append({"Section": "License", "Metric": "Missing in Uzio",
-                     "Value": _count(license_df, "Status",
-                                     lambda v: "missing in uzio" in str(v).lower()
-                                                or "not found in uzio" in str(v).lower())})
-        rows.append({"Section": "License", "Metric": "Missing in ADP",
-                     "Value": _count(license_df, "Status",
-                                     lambda v: "missing in adp" in str(v).lower())})
-
-    return pd.DataFrame(rows, columns=["Section", "Metric", "Value"])
-
-
-def _write_workbook(summary_df, census_dfs, payment_dfs, emergency_dfs,
+def _write_workbook(census_dfs, payment_dfs, emergency_dfs,
                     license_df) -> bytes:
+    # Census summary/roll-up sheets are intentionally excluded from the
+    # consolidated workbook — only the per-field detail and anomaly sheets ship.
+    _CENSUS_SKIP = {"Summary", "Field_Summary_By_Status"}
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
-        summary_df.to_excel(writer, sheet_name="Chief_Summary", index=False)
-
         for name, df in (census_dfs or {}).items():
+            if name in _CENSUS_SKIP:
+                continue
             if df is None or df.empty:
                 continue
             sheet = f"CEN_{name}"[:31]
@@ -382,15 +305,14 @@ def render_ui():
                 Emergency Contact audit and the License audit
 
             **Partial runs are supported.** If you only have (e.g.) Census + DD
-            ready, run the tool with just those two — the missing audits are
-            reported as *Skipped — no file uploaded* in the Chief Summary and
-            no sheet for them appears in the workbook.
+            ready, run the tool with just those two — the missing audits simply
+            contribute no sheets to the workbook.
 
             **What you get**
-            One chief workbook with a top-level `Chief_Summary` tab plus one
-            tab per sheet each standalone audit would have produced (census
-            comparison + every anomaly check, payment mixed-mode R4 with
-            highlighting, emergency contact comparison, license comparison).
+            One consolidated workbook with one tab per sheet each standalone
+            audit would have produced (census comparison + every anomaly check,
+            payment mixed-mode R4 with highlighting, emergency contact
+            comparison, license comparison).
 
             **Multi-row data is fully audited** — every bank account, every
             emergency contact, every license. The Uzio HR Report's multi-row
@@ -462,7 +384,7 @@ def render_ui():
     if st.button("Run Consolidated Audit", type="primary"):
         # Uzio HR Report is required (every audit needs the Uzio side). Each ADP
         # file is OPTIONAL — the matching audit runs only if its file is uploaded,
-        # otherwise it is reported as "Skipped" in the chief summary.
+        # otherwise it simply contributes no sheets to the workbook.
         if not uzio_file:
             st.error("Please upload the Uzio HR Report — it is required for any audit to run.")
             return
@@ -504,32 +426,27 @@ def render_ui():
             errs["emergency"] = SKIPPED
             errs["license"] = SKIPPED
 
+        # Surface only genuine audit failures (a skipped audit — no file
+        # uploaded — stays silent; the user asked for a clean, button-only UI).
         for label, key in [("Census", "census"), ("Direct Deposit", "payment"),
                             ("Emergency Contact", "emergency"), ("License", "license")]:
             err = errs.get(key)
             if err and err != SKIPPED:
                 st.error(f"{label} audit failed: {err}")
-            elif err == SKIPPED:
-                st.info(f"{label} audit skipped — no file uploaded.")
-
-        summary_df = _build_summary(
-            census_dfs or {}, payment_dfs or {}, emergency_dfs or {},
-            license_df, errs,
-        )
-
-        st.markdown("### Chief Summary")
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
         report_bytes = _write_workbook(
-            summary_df, census_dfs or {}, payment_dfs or {},
+            census_dfs or {}, payment_dfs or {},
             emergency_dfs or {}, license_df,
         )
         ts = datetime.now().strftime("%d_%m_%Y_%H%M")
+        display_client = client_name.strip() or "Client"
         safe_client = "".join(ch for ch in client_name
                               if ch.isalnum() or ch in ("_", "-")) or "Client"
+        st.success("Report generated.")
         st.download_button(
-            label="Download Chief Consolidated Audit Report",
+            label=f"Download {display_client} Consolidated Audit Report",
             data=report_bytes,
-            file_name=f"ADP_Chief_Consolidated_Audit_Report_{safe_client}_{ts}.xlsx",
+            file_name=f"ADP_{safe_client}_Consolidated_Audit_Report_{ts}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
         )
