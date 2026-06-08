@@ -77,6 +77,21 @@ def read_uzio_master(file):
     df.columns = combined_cols
     return df
 
+
+def company_name_from_uzio_master(df):
+    """Return the client/company name carried in a parsed Uzio Master Report, or
+    "" if absent. The report's 'Company Information|Company Name' column repeats
+    the same company on every employee row, so take the first non-empty value."""
+    if df is None or df.empty:
+        return ""
+    col = next((c for c in df.columns
+                if str(c).strip().lower().endswith("company name")), None)
+    if col is None:
+        return ""
+    s = df[col].dropna().astype(str).str.strip()
+    s = s[s != ""]
+    return s.iloc[0] if len(s) else ""
+
 # --- Field Mappings ---
 # --- Field Mappings ---
 PAYCOM_CENSUS_MAP = {
@@ -964,8 +979,6 @@ def render_ui():
     with col2:
         p_file = st.file_uploader("Upload Paycom Census Export (Excel/CSV)", type=["xlsx", "csv"], key="comb_p")
 
-    client_name = st.text_input("Client Name", value="Falcon Logistics", key="comb_client")
-
     if st.button("Run Consolidated Audit", type="primary"):
         if not u_file or not p_file:
             st.error("Please upload both files.")
@@ -975,7 +988,11 @@ def render_ui():
             with st.spinner("Processing files..."):
                 # Load Uzio
                 df_uzio = read_uzio_master(u_file)
-                
+
+                # Client name comes straight from the Uzio report's
+                # Company Information > Company Name column.
+                client_name = company_name_from_uzio_master(df_uzio) or "Client"
+
                 # Load Paycom
                 if p_file.name.endswith(".csv"):
                     df_paycom = pd.read_csv(p_file, dtype=str)
@@ -1093,7 +1110,7 @@ def render_ui():
                 filename = f"{client_name}_Consolidated_Audit_Report_{timestamp}.xlsx"
                 
                 st.download_button(
-                    label="Download Consolidated Report",
+                    label=f"Download {client_name} Consolidated Audit Report",
                     data=out.getvalue(),
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
