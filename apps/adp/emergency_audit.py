@@ -87,7 +87,14 @@ def compute_audit_dataframes(file_uzio, file_adp):
     # 1. Load Data
     # Uzio: Header=1 based on inspection
     df_uzio = pd.read_excel(file_uzio, header=1)
-    df_adp = pd.read_excel(file_adp)
+    if getattr(file_adp, "name", "").lower().endswith(".csv"):
+        try:
+            df_adp = pd.read_csv(file_adp)
+        except UnicodeDecodeError:
+            file_adp.seek(0)
+            df_adp = pd.read_csv(file_adp, encoding="latin1")
+    else:
+        df_adp = pd.read_excel(file_adp)
     
     df_adp.columns = [str(c).strip() for c in df_adp.columns]
     
