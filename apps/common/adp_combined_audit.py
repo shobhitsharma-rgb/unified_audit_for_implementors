@@ -446,8 +446,8 @@ def render_ui():
         )
     with a3:
         adp_em = st.file_uploader(
-            "ADP Emergency + License Details Report (.xlsx) — drives both audits",
-            type=["xlsx"], key="adp_cons_adp_em",
+            "ADP Emergency + License Details Report (.xlsx/.csv) — drives both audits",
+            type=["xlsx", "csv"], key="adp_cons_adp_em",
             help=(
                 "ADP Workforce Now → Reports → Employee License Details + "
                 "Emergency Contact (a single export that carries both "
