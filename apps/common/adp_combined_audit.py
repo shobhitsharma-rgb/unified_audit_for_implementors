@@ -25,7 +25,10 @@ import streamlit as st
 
 # Reuse the Uzio HR Report reader from the Paycom consolidator — exact same file
 # shape, no point re-implementing.
-from apps.common.paycom_combined_audit import read_uzio_master
+from apps.common.paycom_combined_audit import (
+    read_uzio_master,
+    company_name_from_uzio_master,
+)
 
 APP_TITLE = "ADP - Consolidated Audit"
 
@@ -322,7 +325,6 @@ def render_ui():
             """
         )
 
-    client_name = st.text_input("Client Name", value="Client", key="adp_cons_client")
 
     st.markdown("### Uzio")
     uzio_file = st.file_uploader(
@@ -399,6 +401,10 @@ def render_ui():
         except Exception as exc:
             st.error(f"Failed to parse Uzio HR Report: {exc}")
             return
+
+        # Client name comes straight from the Uzio report's
+        # Company Information > Company Name column.
+        client_name = company_name_from_uzio_master(df_master) or "Client"
 
         SKIPPED = "SKIPPED"
         errs = {}
