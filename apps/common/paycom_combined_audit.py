@@ -18,6 +18,7 @@ APP_TITLE = "Paycom - Consolidated Audit (Census/Payment/Emergency)"
 # --- Status Constants ---
 STATUS_MATCH = "Data Match"
 STATUS_MISMATCH = "Data Mismatch"
+STATUS_LEADING_ZERO = "Leading Zero Dropped (likely export artifact)"
 STATUS_VAL_MISSING_UZIO = "Value missing in Uzio"
 STATUS_VAL_MISSING_PAYCOM = "Value missing in Paycom"
 STATUS_MISSING_UZIO = "Employee ID Not Found in Uzio"
@@ -351,6 +352,14 @@ def _get_field_val(acc, field):
     val = acc.get(mapping.get(field, ""), "")
     return str(val) if val != "" else ""
 
+def _is_leading_zero_drop(a, b):
+    """True when a and b differ ONLY by leading zero(s) (Excel/Uzio coercion artifact)."""
+    a, b = str(a).strip(), str(b).strip()
+    if not a or not b or a == b:
+        return False
+    sa, sb = a.lstrip("0"), b.lstrip("0")
+    return sa == sb and sa != ""
+
 def _compare_field(field, u_val, p_val, u_acc, p_acc):
     u_n = str(u_val).strip()
     p_n = str(p_val).strip()
@@ -366,6 +375,10 @@ def _compare_field(field, u_val, p_val, u_acc, p_acc):
             if diff < 0.01: return STATUS_MATCH
         except: pass
         return STATUS_MISMATCH
+    if field in ("Account Number", "Routing Number"):
+        rk = "AccountRaw" if field == "Account Number" else "RoutingRaw"
+        if _is_leading_zero_drop(str(u_acc.get(rk, u_n)), str(p_acc.get(rk, p_n))):
+            return STATUS_LEADING_ZERO
     return STATUS_MATCH if u_n == p_n else STATUS_MISMATCH
 
 def run_census_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
@@ -703,7 +716,9 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
         
         acc = {
             "Routing": norm_digits(row.get("Payment Method|Routing Number")).lstrip("0"),
+            "RoutingRaw": norm_digits(row.get("Payment Method|Routing Number")),
             "Account": norm_digits(row.get("Payment Method|Account Number")).lstrip("0"),
+            "AccountRaw": norm_digits(row.get("Payment Method|Account Number")),
             "Type": norm_str(row.get("Payment Method|Account Type")),
             "Percent": norm_money(row.get("Payment Method|Paycheck Percentage")),
             "Amount": norm_money(row.get("Payment Method|Paycheck Amount")),
@@ -732,8 +747,10 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
         # Distributions 1-8
         for i in range(1, 9):
             prefix = f"Dist_{i}_"
-            d_acc = norm_digits(row.get(f"{prefix}Acct_Code")).lstrip("0")
-            d_rout = norm_digits(row.get(f"{prefix}Rout_Code")).lstrip("0")
+            d_acc_raw = norm_digits(row.get(f"{prefix}Acct_Code"))
+            d_rout_raw = norm_digits(row.get(f"{prefix}Rout_Code"))
+            d_acc = d_acc_raw.lstrip("0")
+            d_rout = d_rout_raw.lstrip("0")
             
             raw_amt_val = row.get(f"{prefix}Amount")
             d_amt = norm_money(raw_amt_val)
@@ -756,19 +773,21 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
             if d_acc or d_rout:
                 acc_type = row.get(f"{prefix}Type_Code")
                 accs.append({
-                    "Routing": d_rout, "Account": d_acc, 
+                    "Routing": d_rout, "RoutingRaw": d_rout_raw, "Account": d_acc, "AccountRaw": d_acc_raw,
                     "Type": str(acc_type) if acc_type is not None else "",
                     "Percent": d_pct, "Amount": d_amt, "IsNet": False
                 })
         
         # Net Account
-        n_acc = norm_digits(row.get("Net_Acct_Code")).lstrip("0")
-        n_rout = norm_digits(row.get("Net_Rout_Code")).lstrip("0")
+        n_acc_raw = norm_digits(row.get("Net_Acct_Code"))
+        n_rout_raw = norm_digits(row.get("Net_Rout_Code"))
+        n_acc = n_acc_raw.lstrip("0")
+        n_rout = n_rout_raw.lstrip("0")
         if n_acc or n_rout:
             n_type = row.get("Net_Type_Code")
             n_pct = 100.0 - total_dist_pct if total_dist_pct > 0 else (100.0 if not accs else 0.0)
             accs.append({
-                "Routing": n_rout, "Account": n_acc,
+                "Routing": n_rout, "RoutingRaw": n_rout_raw, "Account": n_acc, "AccountRaw": n_acc_raw,
                 "Type": str(n_type) if n_type is not None else "",
                 "Percent": max(0, n_pct), "Amount": 0.0, "IsNet": True
             })
@@ -841,10 +860,14 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
             for f in FIELDS:
                 u_v = _get_field_val(u, f)
                 p_v = _get_field_val(p, f)
+                status = _compare_field(f, u_v, p_v, u, p)
+                if status == STATUS_LEADING_ZERO:
+                    rk = "AccountRaw" if f == "Account Number" else "RoutingRaw"
+                    u_v = u.get(rk, u_v); p_v = p.get(rk, p_v)
                 rows.append({
                     "Employee ID": eid, "Employee Name": name, "Section": "Payment",
                     "Field": f, "Uzio Value": u_v, "Paycom Value": p_v,
-                    "Status": _compare_field(f, u_v, p_v, u, p)
+                    "Status": status
                 })
         
         for u in u_pending:
@@ -1188,7 +1211,19 @@ def render_ui():
                     res_census.to_excel(writer, sheet_name="Census_Audit", index=False)
                     res_payment.to_excel(writer, sheet_name="Payment_Audit", index=False)
                     res_emergency.to_excel(writer, sheet_name="Emergency_Audit", index=False)
-                    
+                    _lz = res_payment[res_payment["Status"] == STATUS_LEADING_ZERO] if "Status" in res_payment.columns else res_payment.iloc[0:0]
+                    if not _lz.empty:
+                        _lz.rename(columns={"Uzio Value": "Stored in Uzio (zero dropped)", "Paycom Value": "Correct value (Paycom)"})[
+                            ["Employee ID", "Employee Name", "Employee Status", "Field", "Correct value (Paycom)", "Stored in Uzio (zero dropped)"]
+                        ].to_excel(writer, sheet_name="Leading_Zero_Issues", index=False)
+
+                _lz_count = int((res_payment["Status"] == STATUS_LEADING_ZERO).sum()) if "Status" in res_payment.columns else 0
+                if _lz_count:
+                    st.warning(
+                        f"WARNING: Leading zero dropped on {_lz_count} payment value(s). These differ from "
+                        "Paycom ONLY by a missing leading zero - an Excel/Uzio import formatting artifact, "
+                        "NOT a data-entry error. See the Leading_Zero_Issues tab; the Paycom value is correct."
+                    )
                 timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
                 filename = f"{client_name}_Consolidated_Audit_Report_{timestamp}.xlsx"
                 

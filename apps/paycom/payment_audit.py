@@ -20,6 +20,20 @@ STATUS_MISSING_UZIO = "Employee ID Not Found in Uzio"
 STATUS_MISSING_PAYCOM = "Employee ID Not Found in Paycom"
 STATUS_COL_MISSING_PAYCOM = "Column Missing in Paycom Sheet"
 STATUS_COL_MISSING_UZIO = "Column Missing in Uzio Sheet"
+# A difference that is ONLY a missing leading zero (e.g. Paycom 028248003 vs
+# Uzio 28248003) is the Excel/Uzio numeric-coercion artifact, NOT a real
+# data-entry mismatch. It is surfaced as its own status so reviewers can tell
+# the benign export bug apart from a genuinely wrong account number.
+STATUS_LEADING_ZERO = "Leading Zero Dropped (likely export artifact)"
+
+def _is_leading_zero_drop(a, b):
+    """True when a and b are identical apart from one or more leading zeros
+    (and at least one digit remains after stripping). Both must be non-blank."""
+    a, b = str(a).strip(), str(b).strip()
+    if not a or not b or a == b:
+        return False
+    sa, sb = a.lstrip("0"), b.lstrip("0")
+    return sa == sb and sa != ""
 
 def norm_str(x):
     if x is None:
@@ -111,9 +125,23 @@ def render_ui():
     if run_btn:
         try:
             with st.spinner("Running audit..."):
-                report_bytes = run_audit(uzio_file, paycom_file)
+                report_bytes, leading_zero_issues = run_audit(uzio_file, paycom_file)
 
             st.success("Report generated.")
+
+            if not leading_zero_issues.empty:
+                n_acct = int((leading_zero_issues["Field"] == "Account Number").sum())
+                n_rout = int((leading_zero_issues["Field"] == "Routing Number").sum())
+                st.warning(
+                    f"WARNING: Leading zero dropped on {len(leading_zero_issues)} value(s) "
+                    f"({n_acct} account number(s), {n_rout} routing number(s)). "
+                    "These differ from Paycom ONLY by a missing leading zero - an Excel/Uzio "
+                    "import formatting artifact, NOT a data-entry error. The Paycom value is "
+                    "correct; these accounts should be re-imported from the Paycom source. "
+                    "See the Leading_Zero_Issues tab in the report."
+                )
+                with st.expander(f"View the {len(leading_zero_issues)} affected value(s)", expanded=False):
+                    st.dataframe(leading_zero_issues, hide_index=True, use_container_width=True)
 
             timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
             out_filename = f"{client_name}_Uzio_Paycom_Payment_Audit_Report_{timestamp}.xlsx"
@@ -662,6 +690,7 @@ def run_audit(uzio_file, paycom_file):
     status_cols = [
         STATUS_MATCH,
         STATUS_MISMATCH,
+        STATUS_LEADING_ZERO,
         STATUS_VAL_MISSING_UZIO,
         STATUS_VAL_MISSING_PAYCOM,
         STATUS_MISSING_UZIO,
@@ -687,12 +716,25 @@ def run_audit(uzio_file, paycom_file):
 
     field_summary_by_status = pivot.reset_index()[[
         "Field", "Total",
-        STATUS_MATCH, STATUS_MISMATCH,
+        STATUS_MATCH, STATUS_MISMATCH, STATUS_LEADING_ZERO,
         STATUS_VAL_MISSING_UZIO,
         STATUS_VAL_MISSING_PAYCOM,
         STATUS_MISSING_UZIO, STATUS_MISSING_PAYCOM,
         STATUS_COL_MISSING_PAYCOM, STATUS_COL_MISSING_UZIO,
     ]]
+
+    # ---------- Leading-Zero Issues (dedicated, actionable sheet) ----------
+    lz = comparison_detail[
+        comparison_detail["Paycom_SourceOfTruth_Status"] == STATUS_LEADING_ZERO
+    ]
+    leading_zero_issues = pd.DataFrame({
+        "Employee ID": lz["Employee ID"],
+        "Employee Name": lz["Employee Name"],
+        "Employee Status": lz["Employee Status"],
+        "Field": lz["Field"],
+        "Correct value (Paycom)": lz["Paycom_Value"],
+        "Stored in Uzio (zero dropped)": lz["UZIO_Value"],
+    }).reset_index(drop=True)
 
     # ---------- Summary metrics ----------
     uzio_keys = set(uzio_emp_names.keys())
@@ -706,7 +748,8 @@ def run_audit(uzio_file, paycom_file):
             "Employees missing in Paycom (Uzio only)",
             "Employees missing in Uzio (Paycom only)",
             "Total comparison rows",
-            "Total NOT OK rows"
+            "Total NOT OK rows",
+            "Leading-zero drops (account/routing)"
         ],
         "Value": [
             len(uzio_keys),
@@ -715,18 +758,21 @@ def run_audit(uzio_file, paycom_file):
             len(uzio_keys - paycom_keys),
             len(paycom_keys - uzio_keys),
             comparison_detail.shape[0],
-            mismatches_only.shape[0]
+            mismatches_only.shape[0],
+            leading_zero_issues.shape[0]
         ]
     })
 
-    # ---------- Export report (3 sheets like census_audit_app.py) ----------
+    # ---------- Export report ----------
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
         summary.to_excel(writer, sheet_name="Summary", index=False)
         field_summary_by_status.to_excel(writer, sheet_name="Field_Summary_By_Status", index=False)
         comparison_detail.to_excel(writer, sheet_name="Comparison_Detail_AllFields", index=False)
+        if not leading_zero_issues.empty:
+            leading_zero_issues.to_excel(writer, sheet_name="Leading_Zero_Issues", index=False)
 
-    return out.getvalue()
+    return out.getvalue(), leading_zero_issues
 
 
 # ---------- Helper: Extract field value from account dict ----------
@@ -773,6 +819,11 @@ def _compare_field(field, u_val, p_val, u_acc, p_acc):
         except ValueError:
             pass
         return STATUS_MISMATCH
+
+    # Account / Routing: a difference that is ONLY leading zeros is the
+    # Excel/Uzio numeric-coercion artifact, not a real data mismatch.
+    if field in ("Account Number", "Routing Number") and _is_leading_zero_drop(u_n, p_n):
+        return STATUS_LEADING_ZERO
 
     # Default: exact string match (Routing, Account)
     if u_n == p_n:
