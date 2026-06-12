@@ -688,7 +688,9 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
 
     u_id_col = "Job|Employee ID"
     p_id_col = next((c for c in df_paycom.columns if "Employee_Code" in c), "Employee_Code")
-    
+    p_stat_col = next((c for c in df_paycom.columns if "Employee_Status" in c), "Employee_Status")
+    paycom_status_map = {}  # mapped (Uzio-side) EmpID -> Paycom Employee_Status
+
     # Process Uzio Accounts
     u_map = {}
     uzio_emp_names = {}
@@ -719,7 +721,12 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
         
         # Translate Paycom ID to Uzio ID if mapping exists
         mapped_eid = pc_to_uz_id_map.get(eid, eid)
-        
+
+        # Capture Paycom employee status (first non-blank wins per employee)
+        stat = norm_str(row.get(p_stat_col))
+        if stat and mapped_eid not in paycom_status_map:
+            paycom_status_map[mapped_eid] = stat
+
         accs = []
         total_dist_pct = 0.0
         # Distributions 1-8
@@ -855,7 +862,12 @@ def run_payment_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
                     "Status": "Value missing in Uzio"
                 })
 
-    return pd.DataFrame(rows)
+    df_out = pd.DataFrame(rows)
+    # Employee Status sourced from Paycom (blank for Uzio-only employees not in Paycom)
+    if not df_out.empty:
+        df_out.insert(2, "Employee Status",
+                      df_out["Employee ID"].map(lambda e: paycom_status_map.get(e, "")))
+    return df_out
 
 def run_emergency_audit(df_uzio, df_paycom, uz_to_pc_id_map=None):
     rows = []
