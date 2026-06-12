@@ -210,9 +210,12 @@ def run_audit(uzio_file, paycom_file):
 
     # 3. Process Paycom Data (Wide Format -> Unpivot)
     paycom_accounts = []
+    paycom_status_map = {}  # resolved EmpID -> Paycom Employee_Status (Active/Terminated/...)
     df_paycom.columns = [str(c).strip() for c in df_paycom.columns]
-    
+
     pc_empid_col = next((c for c in df_paycom.columns if "Employee_Code" in c or "Emp Code" in c), "Employee_Code")
+    # Employee status column (exact match only — avoid Bonus_Status / Net_Status / DOL_Status etc.)
+    pc_status_col = next((c for c in df_paycom.columns if c.strip().lower() in ("employee_status", "employee status")), "")
     
     # Identify Name Columns in Paycom for validation
     # Pria Paycom Cenus.xlsx has: Legal_Firstname, Legal_Lastname, Legal_Middle_Name
@@ -310,8 +313,14 @@ def run_audit(uzio_file, paycom_file):
         
         # Smart Resolve with Name
         emp_id = resolve_paycom_id(raw_id, name_parts, uzio_emp_names)
-        
+
         if not emp_id: continue
+
+        # Capture Paycom employee status (first non-blank wins per employee)
+        if pc_status_col:
+            status_val = norm_str(row.get(pc_status_col))
+            if status_val and emp_id not in paycom_status_map:
+                paycom_status_map[emp_id] = status_val
 
         # --- Extract Distributions (1 to 8) FIRST, so we can sum percents ---
         dist_entries = []
@@ -423,8 +432,8 @@ def run_audit(uzio_file, paycom_file):
         if item not in paycom_map[eid]:
             paycom_map[eid].append(item)
 
-    # 4. Comparison Logic — Long Format (one per field per account)
-    # Fields: Routing Number, Account Number, Account Type, Amount, Percent
+    # 4. Comparison Logic — Long Format (one row per field per account)
+    # Fields to compare: Routing Number, Account Number, Account Type, Amount, Percent
     FIELDS = ["Routing Number", "Account Number", "Account Type", "Amount", "Percent"]
 
     rows = []
@@ -473,8 +482,11 @@ def run_audit(uzio_file, paycom_file):
         u_unmatched = []
 
         # Pass 1: Exact match on Routing + Account
+        # UPDATED: Use "Best Fit" strategy to handle multiple identical accounts
+        # (e.g. A0BZ has 2 Checking accts with same numbers, formatted as 1% and 99%)
         for u in u_accs:
             match = None
+            # Find ALL candidates that match Routing+Account
             candidates = []
             for p in p_remaining:
                 if u["Routing"] == p["Routing"] and u["Account"] == p["Account"]:
@@ -488,23 +500,30 @@ def run_audit(uzio_file, paycom_file):
             if len(candidates) == 1:
                 match = candidates[0]
             else:
+                # UPDATED: Scoring System to handle ties (e.g. 50% Checking vs 50% Savings)
                 best_c = candidates[0]
                 max_score = -1
                 
                 u_pct = u.get("Percent", 0.0)
                 u_amt = u.get("Amount", 0.0)
-                u_type = strip_type(u["Type"])
+                u_type = strip_type(u["Type"]) # Normalize Uzio type
 
                 for c in candidates:
                     score = 0
                     c_pct = c.get("Percent", 0.0)
                     c_amt = c.get("Amount", 0.0)
-                    c_type = strip_type(c["Type"])
+                    c_type = strip_type(c["Type"]) # Normalize Paycom type
 
+                    # Score Criteria
+                    # 1. Percent Match (+10)
                     if u_pct > 0 and abs(u_pct - c_pct) < 0.01:
                         score += 10
+                    
+                    # 2. Amount Match (+10)
                     if u_amt > 0 and abs(u_amt - c_amt) < 0.01:
                         score += 10
+
+                    # 3. Type Match (+5) - Key tiebreaker for duplicate accounts
                     if u_type and c_type and u_type == c_type:
                         score += 5
                     
@@ -531,9 +550,11 @@ def run_audit(uzio_file, paycom_file):
                         "Paycom_SourceOfTruth_Status": status
                     })
             else:
+                # Should not happen given logic above, but safety fallback
                 u_unmatched.append(u)
 
         # Pass 2: Fallback match on Routing + Account Type
+        # (handles Paycom exports where account numbers lost precision)
         still_unmatched = []
         for u in u_unmatched:
             match = None
@@ -561,12 +582,15 @@ def run_audit(uzio_file, paycom_file):
             else:
                 still_unmatched.append(u)
 
-        # Pass 3: Fallback match on Routing Number ONLY
+        # Pass 3: Fallback match on Routing Number ONLY (Last Resort)
+        # (For cases like A00Z: Routing matches, but Account# precision lost AND Type code mismatch/unknown)
         final_unmatched = []
         for u in still_unmatched:
             match = None
             u_rout = u["Routing"]
             for p in p_remaining:
+                # If routing matches, we assume it's the same account bank-wise
+                # This prioritizes Routing Number as the primary key if all else fails
                 if u_rout and u_rout == p["Routing"]:
                     match = p
                     break
@@ -590,7 +614,7 @@ def run_audit(uzio_file, paycom_file):
             else:
                 final_unmatched.append(u)
 
-        # Uzio unmatched
+        # Uzio accounts that couldn't match at all
         for u in final_unmatched:
             for field in FIELDS:
                 u_val = _get_field_val(u, field)
@@ -619,9 +643,14 @@ def run_audit(uzio_file, paycom_file):
                     "Paycom_SourceOfTruth_Status": STATUS_VAL_MISSING_UZIO
                 })
 
-    # ---------- Build DataFrames ----------
-    comparison_detail = pd.DataFrame(rows)[[
-        "Employee ID", "Employee Name", "Paycom_Account_Class", "Field",
+    # ---------- Build Output DataFrames ----------
+    comparison_detail = pd.DataFrame(rows)
+    # Employee Status sourced from Paycom (blank for Uzio-only employees not in Paycom)
+    comparison_detail["Employee Status"] = comparison_detail["Employee ID"].map(
+        lambda e: paycom_status_map.get(e, "")
+    )
+    comparison_detail = comparison_detail[[
+        "Employee ID", "Employee Name", "Employee Status", "Paycom_Account_Class", "Field",
         "UZIO_Value", "Paycom_Value", "Paycom_SourceOfTruth_Status"
     ]]
 
@@ -629,11 +658,16 @@ def run_audit(uzio_file, paycom_file):
         comparison_detail["Paycom_SourceOfTruth_Status"] != STATUS_MATCH
     ].copy()
 
-    # ---------- Field Summary ----------
+    # ---------- Field Summary By Status ----------
     status_cols = [
-        STATUS_MATCH, STATUS_MISMATCH, STATUS_VAL_MISSING_UZIO,
-        STATUS_VAL_MISSING_PAYCOM, STATUS_MISSING_UZIO,
-        STATUS_MISSING_PAYCOM, STATUS_COL_MISSING_PAYCOM, STATUS_COL_MISSING_UZIO,
+        STATUS_MATCH,
+        STATUS_MISMATCH,
+        STATUS_VAL_MISSING_UZIO,
+        STATUS_VAL_MISSING_PAYCOM,
+        STATUS_MISSING_UZIO,
+        STATUS_MISSING_PAYCOM,
+        STATUS_COL_MISSING_PAYCOM,
+        STATUS_COL_MISSING_UZIO,
     ]
 
     pivot = comparison_detail.pivot_table(
@@ -649,27 +683,43 @@ def run_audit(uzio_file, paycom_file):
             pivot[c] = 0
 
     pivot["Total"] = pivot.sum(axis=1)
-    field_summary_by_status = pivot.reset_index()[[
-        "Field", "Total"
-    ] + status_cols]
+    pivot[STATUS_MATCH] = pivot[STATUS_MATCH].astype(int)
 
-    # ---------- Metrics ----------
+    field_summary_by_status = pivot.reset_index()[[
+        "Field", "Total",
+        STATUS_MATCH, STATUS_MISMATCH,
+        STATUS_VAL_MISSING_UZIO,
+        STATUS_VAL_MISSING_PAYCOM,
+        STATUS_MISSING_UZIO, STATUS_MISSING_PAYCOM,
+        STATUS_COL_MISSING_PAYCOM, STATUS_COL_MISSING_UZIO,
+    ]]
+
+    # ---------- Summary metrics ----------
     uzio_keys = set(uzio_emp_names.keys())
     paycom_keys = set(paycom_map.keys())
 
     summary = pd.DataFrame({
         "Metric": [
-            "Employees in Uzio", "Employees in Paycom", "Present in both",
-            "Missing in Paycom", "Missing in Uzio", "Total rows", "Total NOT OK"
+            "Employees in Uzio sheet",
+            "Employees in Paycom sheet",
+            "Employees present in both",
+            "Employees missing in Paycom (Uzio only)",
+            "Employees missing in Uzio (Paycom only)",
+            "Total comparison rows",
+            "Total NOT OK rows"
         ],
         "Value": [
-            len(uzio_keys), len(paycom_keys), len(uzio_keys & paycom_keys),
-            len(uzio_keys - paycom_keys), len(paycom_keys - uzio_keys),
-            comparison_detail.shape[0], mismatches_only.shape[0]
+            len(uzio_keys),
+            len(paycom_keys),
+            len(uzio_keys & paycom_keys),
+            len(uzio_keys - paycom_keys),
+            len(paycom_keys - uzio_keys),
+            comparison_detail.shape[0],
+            mismatches_only.shape[0]
         ]
     })
 
-    # ---------- Export ----------
+    # ---------- Export report (3 sheets like census_audit_app.py) ----------
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
         summary.to_excel(writer, sheet_name="Summary", index=False)
@@ -678,6 +728,8 @@ def run_audit(uzio_file, paycom_file):
 
     return out.getvalue()
 
+
+# ---------- Helper: Extract field value from account dict ----------
 def _get_field_val(acc, field):
     mapping = {
         "Routing Number": "Routing",
@@ -689,23 +741,40 @@ def _get_field_val(acc, field):
     val = acc.get(mapping.get(field, ""), "")
     return str(val) if val != "" else ""
 
+
+# ---------- Helper: Compare a single field ----------
 def _compare_field(field, u_val, p_val, u_acc, p_acc):
     u_n = str(u_val).strip() if u_val else ""
     p_n = str(p_val).strip() if p_val else ""
 
-    if u_n == "" and p_n == "": return STATUS_MATCH
-    if u_n == "" and p_n != "": return STATUS_VAL_MISSING_UZIO
-    if u_n != "" and p_n == "": return STATUS_VAL_MISSING_PAYCOM
+    # Both blank
+    if u_n == "" and p_n == "":
+        return STATUS_MATCH
+    # One blank
+    if u_n == "" and p_n != "":
+        return STATUS_VAL_MISSING_UZIO
+    if u_n != "" and p_n == "":
+        return STATUS_VAL_MISSING_PAYCOM
 
+    # Field-specific comparison
     if field == "Account Type":
-        if strip_type(u_n) == strip_type(p_n): return STATUS_MATCH
+        if strip_type(u_n) == strip_type(p_n):
+            return STATUS_MATCH
         return STATUS_MISMATCH
     
     if field in ("Amount", "Percent"):
         try:
-            if abs(float(u_n) - float(p_n)) < 0.01: return STATUS_MATCH
-        except ValueError: pass
+            diff = abs(float(u_n) - float(p_n))
+            if diff < 0.01:
+                return STATUS_MATCH
+            # Special: both are 0, match
+            if float(u_n) == 0.0 and float(p_n) == 0.0:
+                return STATUS_MATCH
+        except ValueError:
+            pass
         return STATUS_MISMATCH
 
-    if u_n == p_n: return STATUS_MATCH
+    # Default: exact string match (Routing, Account)
+    if u_n == p_n:
+        return STATUS_MATCH
     return STATUS_MISMATCH
