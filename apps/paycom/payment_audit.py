@@ -99,62 +99,148 @@ def strip_type(t):
     return s.lower().replace("account", "").replace("code: ", "").strip()
 
 # ---------- UI ----------
-def render_ui():
-    st.title(APP_TITLE)
-    client_name = st.text_input("Client Name", value="Client", key="paycom_payment_client")
-
+def _inject_payment_styles():
     st.markdown("""
-    **Instructions**:
-    1. Upload **Uzio Payment Export** (`HR Report_...xlsx` or `.csv`).
-    2. Upload **Paycom Payment Export** (`.csv` or `.xlsx`).
-    
-    **Output Report**:
-    - **Summary**: Total records and discrepancy counts.
-    - **Comparison_Detail**: Variance analysis for Net Pay and Gross Pay.
-    - **Missing_Employees**: Employees present in one file but not the other.
-    """)
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Inter:wght@400;600&display=swap');
+        .pay-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%); border-radius:16px; padding:26px 30px; margin-bottom:14px; }
+        .pay-hero-title { color:#ffffff !important; font-family:'Manrope',sans-serif; font-size:28px; font-weight:800; letter-spacing:-0.02em; }
+        .pay-hero-sub { color:#c7d2fe !important; font-family:'Inter',sans-serif; font-size:15px; margin-top:6px; line-height:1.5; }
+        .step-pill { display:inline-block; background:#eef2ff; color:#3730a3; font-weight:700; border-radius:999px; padding:2px 10px; font-size:12px; }
+        .metric-card { background:#ffffff; border:1px solid #e6e8ee; border-radius:14px; padding:16px 14px; text-align:center; box-shadow:0 1px 3px rgba(16,24,40,.06); }
+        .metric-icon { font-size:20px; }
+        .metric-num { font-family:'Manrope',sans-serif; font-size:30px; font-weight:800; color:#0f172a; line-height:1.15; }
+        .metric-label { font-family:'Inter',sans-serif; font-size:12.5px; color:#475467; margin-top:2px; }
+        .action-card { background:#fff7ed; border:1px solid #fed7aa; border-left:6px solid #ea580c; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
+        .action-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:#9a3412 !important; margin-bottom:8px; }
+        .action-body { font-family:'Inter',sans-serif; font-size:14.5px; color:#7c2d12 !important; line-height:1.65; }
+        .action-body code { background:#fde68a; padding:1px 6px; border-radius:5px; color:#7c2d12; font-weight:700; }
+        .ok-card { background:#ecfdf5; border:1px solid #a7f3d0; border-left:6px solid #059669; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
+        .ok-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:#065f46 !important; }
+        .ok-body { font-family:'Inter',sans-serif; font-size:14.5px; color:#065f46 !important; margin-top:4px; }
+        .stButton button, .stDownloadButton button { border-radius:10px !important; font-weight:700 !important; }
+        .stButton button[kind="primary"], .stDownloadButton button[kind="primary"] { background:linear-gradient(135deg,#1e3a8a,#3b82f6) !important; border:none !important; }
+        .stButton button[kind="primary"] p, .stDownloadButton button[kind="primary"] p { color:#ffffff !important; }
+        </style>
+    """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        uzio_file = st.file_uploader("Allowed Uzio Export (.xlsx, .xlsm, .csv)", type=["xlsx", "xlsm", "csv"])
-    with col2:
-        paycom_file = st.file_uploader("Allowed Paycom Payment Export (.xlsx, .csv)", type=["xlsx", "csv"])
 
-    run_btn = st.button("Run Audit", type="primary", disabled=(not uzio_file or not paycom_file))
+def render_ui():
+    _inject_payment_styles()
+    st.markdown(
+        '<div class="pay-hero">'
+        '<div class="pay-hero-title">&#128179; Paycom &#8594; Uzio &#183; Bank Account Check</div>'
+        '<div class="pay-hero-sub">Upload the two files and we will compare every bank account in Uzio against '
+        'Paycom, then tell you in plain English exactly what is wrong and how to fix it.</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-    if run_btn:
-        try:
-            with st.spinner("Running audit..."):
-                report_bytes, leading_zero_issues = run_audit(uzio_file, paycom_file)
+    st.markdown(
+        '<span class="step-pill">Step 1</span> &nbsp;Upload your Uzio file &nbsp;&nbsp;&nbsp;'
+        '<span class="step-pill">Step 2</span> &nbsp;Upload your Paycom file &nbsp;&nbsp;&nbsp;'
+        '<span class="step-pill">Step 3</span> &nbsp;Read the results &amp; download the fix list',
+        unsafe_allow_html=True,
+    )
+    st.markdown("<br>", unsafe_allow_html=True)
 
-            st.success("Report generated.")
+    client_name = st.text_input("Client name", value="", placeholder="e.g. Chief Delivery",
+                                help="Only used to name the downloaded report file.")
 
-            if not leading_zero_issues.empty:
-                n_acct = int((leading_zero_issues["Field"] == "Account Number").sum())
-                n_rout = int((leading_zero_issues["Field"] == "Routing Number").sum())
-                st.warning(
-                    f"WARNING: Leading zero dropped on {len(leading_zero_issues)} value(s) "
-                    f"({n_acct} account number(s), {n_rout} routing number(s)). "
-                    "These differ from Paycom ONLY by a missing leading zero - an Excel/Uzio "
-                    "import formatting artifact, NOT a data-entry error. The Paycom value is "
-                    "correct; these accounts should be re-imported from the Paycom source. "
-                    "See the Leading_Zero_Issues tab in the report."
-                )
-                with st.expander(f"View the {len(leading_zero_issues)} affected value(s)", expanded=False):
-                    st.dataframe(leading_zero_issues, hide_index=True, use_container_width=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**\U0001F4E4 Uzio file**")
+        st.caption("The HR Report you exported from Uzio (.xlsx or .csv).")
+        uzio_file = st.file_uploader("Uzio HR Report", type=["xlsx", "xlsm", "csv"],
+                                     label_visibility="collapsed", key="pay_uzio")
+    with c2:
+        st.markdown("**\U0001F4E5 Paycom file**")
+        st.caption("The Advanced Report Writer export from Paycom (.csv or .xlsx).")
+        paycom_file = st.file_uploader("Paycom export", type=["xlsx", "csv"],
+                                       label_visibility="collapsed", key="pay_paycom")
 
-            timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
-            out_filename = f"{client_name}_Uzio_Paycom_Payment_Audit_Report_{timestamp}.xlsx"
+    run_btn = st.button("\U0001F50D  Check the bank accounts", type="primary",
+                        disabled=(not uzio_file or not paycom_file), use_container_width=True)
 
-            st.download_button(
-                label="Download Report (.xlsx)",
-                data=report_bytes,
-                file_name=out_filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-            )
-        except Exception as e:
-            st.error(f"Failed: {e}")
+    if not run_btn:
+        return
+
+    try:
+        with st.spinner("Comparing every bank account..."):
+            report_bytes, leading_zero_issues, stats = run_audit(uzio_file, paycom_file)
+    except Exception as e:
+        st.error(f"Sorry - something went wrong while reading the files: {e}")
+        return
+
+    client_label = client_name.strip() or "Client"
+    st.markdown("---")
+    st.markdown(f"## ✅ Done - here is what we found for **{client_label}**")
+
+    cards = [
+        ("\U0001F465", stats["employees_checked"], "Employees checked", "#3b82f6"),
+        ("✅", stats["matched"], "Account details that match", "#16a34a"),
+        ("\U0001F527", stats["leading_zero"], "Need re-import (lost a 0)", "#ea580c"),
+        ("⚠️", stats["real_mismatch"], "Real mismatches to review", "#dc2626"),
+    ]
+    cols = st.columns(len(cards))
+    for col, (icon, val, label, color) in zip(cols, cards):
+        col.markdown(
+            f'<div class="metric-card" style="border-top:4px solid {color}">'
+            f'<div class="metric-icon">{icon}</div>'
+            f'<div class="metric-num">{val}</div>'
+            f'<div class="metric-label">{label}</div></div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    if not leading_zero_issues.empty:
+        n = len(leading_zero_issues)
+        st.markdown(
+            f'<div class="action-card">'
+            f'<div class="action-title">\U0001F527 {n} bank account number(s) need a quick re-import</div>'
+            f'<div class="action-body">'
+            f'<b>What happened:</b> when this data was loaded into Uzio, {n} account number(s) lost their starting '
+            f'zero &mdash; for example <code>028248003</code> turned into <code>28248003</code>.<br>'
+            f'<b>Is it serious?</b> No. It is an Excel/Uzio number-formatting glitch, not a typing mistake. '
+            f'The value in <b>Paycom is the correct one</b>.<br>'
+            f'<b>✅ What to do:</b> re-import these account numbers from the Paycom file. The exact correct values '
+            f'are listed below and in the <b>"Accounts To Re-Import"</b> tab of the downloaded report.'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+        st.caption('"Correct value (from Paycom)" is what the account should be. "Wrong value now in Uzio" is what is stored today.')
+        with st.container(height=360, border=True):
+            st.dataframe(leading_zero_issues, hide_index=True, use_container_width=True)
+
+    if stats["real_mismatch"] > 0:
+        st.markdown(f"#### ⚠️ {stats['real_mismatch']} value(s) genuinely differ - please review")
+        st.caption("These are not leading-zero glitches: the Uzio and Paycom values are actually different, so someone "
+                   "should confirm which one is right. Open the \"All Comparisons\" tab in the report and filter the "
+                   "Status column to \"Data Mismatch\".")
+
+    if leading_zero_issues.empty and stats["real_mismatch"] == 0:
+        st.markdown(
+            '<div class="ok-card"><div class="ok-title">\U0001F389 Everything matches!</div>'
+            '<div class="ok-body">Every bank account in Uzio agrees with Paycom. There is nothing to fix.</div></div>',
+            unsafe_allow_html=True,
+        )
+
+    if stats["missing_uzio"] or stats["missing_paycom"]:
+        st.caption(f"ℹ️ Heads-up: {stats['missing_uzio']} value(s) are in Paycom but missing from Uzio, and "
+                   f"{stats['missing_paycom']} are in Uzio but missing from Paycom. Details are in the report.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
+    out_filename = f"{client_label}_Uzio_Paycom_Payment_Audit_Report_{timestamp}.xlsx"
+    st.download_button(
+        label="⬇️  Download the full report (Excel)",
+        data=report_bytes,
+        file_name=out_filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary",
+        use_container_width=True,
+    )
+    st.caption('The report opens with a "Start Here" tab that explains every other tab in plain English.')
 
 # ---------- Core Audit Logic ----------
 def _read_payment_file(file, header=0):
@@ -730,15 +816,25 @@ def run_audit(uzio_file, paycom_file):
     leading_zero_issues = pd.DataFrame({
         "Employee ID": lz["Employee ID"],
         "Employee Name": lz["Employee Name"],
-        "Employee Status": lz["Employee Status"],
+        "Status (Paycom)": lz["Employee Status"],
         "Field": lz["Field"],
-        "Correct value (Paycom)": lz["Paycom_Value"],
-        "Stored in Uzio (zero dropped)": lz["UZIO_Value"],
+        "Correct value (from Paycom)": lz["Paycom_Value"],
+        "Wrong value now in Uzio": lz["UZIO_Value"],
     }).reset_index(drop=True)
 
     # ---------- Summary metrics ----------
     uzio_keys = set(uzio_emp_names.keys())
     paycom_keys = set(paycom_map.keys())
+
+    status_counts = comparison_detail["Paycom_SourceOfTruth_Status"].value_counts().to_dict()
+    stats = {
+        "employees_checked": len(uzio_keys | paycom_keys),
+        "matched": int(status_counts.get(STATUS_MATCH, 0)),
+        "leading_zero": int(leading_zero_issues.shape[0]),
+        "real_mismatch": int(status_counts.get(STATUS_MISMATCH, 0)),
+        "missing_uzio": int(status_counts.get(STATUS_VAL_MISSING_UZIO, 0)) + int(status_counts.get(STATUS_MISSING_UZIO, 0)),
+        "missing_paycom": int(status_counts.get(STATUS_VAL_MISSING_PAYCOM, 0)) + int(status_counts.get(STATUS_MISSING_PAYCOM, 0)),
+    }
 
     summary = pd.DataFrame({
         "Metric": [
@@ -763,16 +859,45 @@ def run_audit(uzio_file, paycom_file):
         ]
     })
 
-    # ---------- Export report ----------
+    # ---------- "Start Here" plain-English guide (first tab) ----------
+    n_lz = int(leading_zero_issues.shape[0])
+    start_here = pd.DataFrame({"How to read this report": [
+        "This report compares every bank account stored in Uzio against Paycom (the source of truth).",
+        "",
+        (f"ACTION NEEDED: {n_lz} account number(s) lost a starting 0 when imported into Uzio."
+         if n_lz else "Good news: no leading-zero problems were found."),
+        ("   These are NOT typos - the Paycom value is correct. Just re-import those accounts."
+         if n_lz else "   Every account number kept its leading zeros."),
+        "",
+        "Tabs in this file:",
+        "   - 'Accounts To Re-Import'  ->  the exact accounts to fix, with the correct value to use.",
+        "   - 'All Comparisons'        ->  every field checked, each with a plain-English Status.",
+        "   - 'Results by Field'       ->  how many matched / mismatched for each field.",
+        "   - 'Totals'                 ->  overall counts.",
+        "",
+        "What each Status means:",
+        "   - Data Match            = Uzio and Paycom agree. Nothing to do.",
+        "   - Leading Zero Dropped  = Uzio lost a starting 0. Re-import from Paycom.",
+        "   - Data Mismatch         = the values are genuinely different. Please review.",
+        "   - Value missing in ...  = the account exists in only one of the two systems.",
+    ]})
+
+    # ---------- Export report (friendly, human-readable tabs) ----------
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        summary.to_excel(writer, sheet_name="Summary", index=False)
-        field_summary_by_status.to_excel(writer, sheet_name="Field_Summary_By_Status", index=False)
-        comparison_detail.to_excel(writer, sheet_name="Comparison_Detail_AllFields", index=False)
+        start_here.to_excel(writer, sheet_name="Start Here", index=False)
         if not leading_zero_issues.empty:
-            leading_zero_issues.to_excel(writer, sheet_name="Leading_Zero_Issues", index=False)
+            leading_zero_issues.to_excel(writer, sheet_name="Accounts To Re-Import", index=False)
+        comparison_detail.to_excel(writer, sheet_name="All Comparisons", index=False)
+        field_summary_by_status.to_excel(writer, sheet_name="Results by Field", index=False)
+        summary.to_excel(writer, sheet_name="Totals", index=False)
+        writer.sheets["Start Here"].column_dimensions["A"].width = 92
+        if not leading_zero_issues.empty:
+            _ws = writer.sheets["Accounts To Re-Import"]
+            for _c, _w in {"A": 12, "B": 24, "C": 16, "D": 16, "E": 26, "F": 24}.items():
+                _ws.column_dimensions[_c].width = _w
 
-    return out.getvalue(), leading_zero_issues
+    return out.getvalue(), leading_zero_issues, stats
 
 
 # ---------- Helper: Extract field value from account dict ----------
