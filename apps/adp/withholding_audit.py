@@ -527,7 +527,10 @@ def compare_field(
         a_val = 0.0 if a_blank else af
         u_val = 0.0 if u_blank else (uf / 100.0)
         # Both effectively zero (blank or literal 0) → match.
-        if abs(a_val - u_val) < 0.01:
+        # Tolerance is HALF a cent. `< 0.01` combined with float-precision noise
+        # (e.g. abs(10.0 - 10.01) ~ 0.0099999) lets exact-1-cent diffs silently
+        # pass. Tighten to 0.005 so genuine 1-cent disagreements register.
+        if abs(a_val - u_val) < 0.005:
             note = "both effectively zero" if (a_blank or u_blank) else "both populated and equal"
             return ComparisonResult(True, "match", f"{a_val:g}", f"{u_val:g}", "money_cents", note)
         # Asymmetric blank vs non-zero → blank_vs_value (a real, actionable finding).

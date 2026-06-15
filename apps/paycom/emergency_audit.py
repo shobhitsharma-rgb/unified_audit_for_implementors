@@ -42,7 +42,7 @@ def norm_id(x):
     if pd.isna(x): return ""
     s = str(x).strip()
     if s.endswith(".0"): s = s[:-2]
-    return s.lstrip("0")
+    return s.lstrip("0") # Paycom/Uzio ID match usually requires stripping zeros
 
 def norm_phone(x):
     """Normalize phone to just digits."""
@@ -94,10 +94,10 @@ def _compare_val(field, u_val, p_val):
     return False
 
 def run_audit(file_uzio, file_paycom):
-    # 1. Load Uzio Data
+    # 1. Load Uzio Data (Same layout as ADP tool)
     df_uzio = pd.read_excel(file_uzio, header=1)
     
-    # 2. Load Paycom Data
+    # 2. Load Paycom Data (Census file)
     try:
         if file_paycom.name.lower().endswith('.csv'):
              try:
@@ -115,6 +115,7 @@ def run_audit(file_uzio, file_paycom):
     df_paycom.columns = [norm_col(c) for c in df_paycom.columns]
 
     # 3. Map Columns
+    # Uzio
     u_map = {
         "EmpID": next((c for c in df_uzio.columns if "Employee ID" in c), "Employee ID"),
         "Name": next((c for c in df_uzio.columns if "Name" in c and "Full" not in c and "Company" not in c), "Name"),
@@ -122,7 +123,10 @@ def run_audit(file_uzio, file_paycom):
         "Phone": next((c for c in df_uzio.columns if "Phone" in c), "Phone")
     }
 
+    # Paycom (Census columns)
+    # Emergency_1_Contact, Emergency_1_Language, Emergency_1_Phone, Emergency_1_Relationship
     def get_p_col(keyword):
+        # Helper to find column containing keyword (case insensitive)
         for c in df_paycom.columns:
             if keyword.lower() in c.lower():
                 return c
@@ -156,7 +160,7 @@ def run_audit(file_uzio, file_paycom):
             "Relation": norm_relation(row.get(u_map["Relation"])),
             "Phone": norm_phone(row.get(u_map["Phone"])),
             "RawPhone": norm_str(row.get(u_map["Phone"])),
-            "Language": ""
+            "Language": "" # Uzio doesn't seem to have language in this report
         }
         if contact["Name"] or contact["Phone"]:
             if eid not in uzio_data: uzio_data[eid] = []
@@ -170,7 +174,10 @@ def run_audit(file_uzio, file_paycom):
         p_all_eids.add(eid)
         
         for p_map in p_maps:
-            if not p_map["Name"] and not p_map["Phone"]: continue
+            # Skip if file doesn't have these columns for this index
+            if not p_map["Name"] and not p_map["Phone"]:
+                continue
+
             contact = {
                 "Name": norm_str(row.get(p_map["Name"])) if p_map["Name"] else "",
                 "Relation": norm_relation(row.get(p_map["Relation"])) if p_map["Relation"] else "",
@@ -178,6 +185,7 @@ def run_audit(file_uzio, file_paycom):
                 "RawPhone": norm_str(row.get(p_map["Phone"])) if p_map["Phone"] else "",
                 "Language": norm_str(row.get(p_map["Language"])) if p_map["Language"] else ""
             }
+            
             if contact["Name"] or contact["Phone"]:
                 if eid not in paycom_data: paycom_data[eid] = []
                 paycom_data[eid].append(contact)
@@ -185,23 +193,29 @@ def run_audit(file_uzio, file_paycom):
     # 5. Compare
     rows = []
     all_ids = set(uzio_data.keys()) | set(paycom_data.keys())
-    FIELDS = ["Name", "Relationship", "Phone"]
+    FIELDS = ["Name", "Relationship", "Phone"] # We won't compare Language strictly if Uzio doesn't have it
 
     for eid in sorted(all_ids):
         u_contacts = uzio_data.get(eid, [])
         p_contacts = paycom_data.get(eid, [])
         
+        # Missing Employee
         if not u_contacts and p_contacts:
             status = STATUS_EMP_MISSING_UZIO if eid not in u_all_eids else STATUS_MISSING_UZIO
             for p in p_contacts:
                 for f in FIELDS:
                     rows.append({
-                        "Employee ID": eid, "Status": status, "Field": f,
+                        "Employee ID": eid,
+                        "Status": status,
+                        "Field": f,
                         "Uzio Value": "Not Found" if status == STATUS_EMP_MISSING_UZIO else "",
                         "Paycom Value": _get_val(p, f)
                     })
+                # Add Language check just for reporting
                 rows.append({
-                    "Employee ID": eid, "Status": status, "Field": "Language",
+                    "Employee ID": eid,
+                    "Status": status,
+                    "Field": "Language",
                     "Uzio Value": "Not Found" if status == STATUS_EMP_MISSING_UZIO else "",
                     "Paycom Value": p["Language"]
                 })
@@ -212,16 +226,20 @@ def run_audit(file_uzio, file_paycom):
             for u in u_contacts:
                 for f in FIELDS:
                     rows.append({
-                        "Employee ID": eid, "Status": status, "Field": f,
+                        "Employee ID": eid,
+                        "Status": status,
+                        "Field": f,
                         "Uzio Value": _get_val(u, f) if f != "Phone" else u["RawPhone"],
                         "Paycom Value": "Not Found" if status == STATUS_EMP_MISSING_PAYCOM else ""
                     })
             continue
 
+        # Match Contacts
         u_pending = u_contacts[:]
         p_pending = p_contacts[:]
         matched_pairs = []
 
+        # Pass 1: Name Match
         for u in list(u_pending):
             match = None
             for p in p_pending:
@@ -229,8 +247,11 @@ def run_audit(file_uzio, file_paycom):
                     match = p
                     break
             if match:
-                matched_pairs.append((u, match)); u_pending.remove(u); p_pending.remove(match)
+                matched_pairs.append((u, match))
+                u_pending.remove(u)
+                p_pending.remove(match)
 
+        # Pass 2: Phone Match
         for u in list(u_pending):
             if not u["Phone"]: continue
             match = None
@@ -239,30 +260,71 @@ def run_audit(file_uzio, file_paycom):
                     match = p
                     break
             if match:
-                matched_pairs.append((u, match)); u_pending.remove(u); p_pending.remove(match)
+                matched_pairs.append((u, match))
+                u_pending.remove(u)
+                p_pending.remove(match)
 
+        # Compare Matched
         for u, p in matched_pairs:
             for f in FIELDS:
-                u_val = _get_val(u, f); p_val = _get_val(p, f)
+                u_val = _get_val(u, f)
+                p_val = _get_val(p, f)
+                
                 u_disp = u["RawPhone"] if f == "Phone" else u_val
                 p_disp = p["RawPhone"] if f == "Phone" else p_val
-                status = STATUS_MATCH if _compare_val(f, u_val, p_val) else STATUS_MISMATCH
-                rows.append({"Employee ID": eid, "Status": status, "Field": f, "Uzio Value": u_disp, "Paycom Value": p_disp})
-            rows.append({"Employee ID": eid, "Status": "Info Only", "Field": "Language", "Uzio Value": "N/A", "Paycom Value": p["Language"]})
+                
+                if _compare_val(f, u_val, p_val):
+                    status = STATUS_MATCH
+                else:
+                    status = STATUS_MISMATCH
+                
+                rows.append({
+                    "Employee ID": eid,
+                    "Status": status,
+                    "Field": f,
+                    "Uzio Value": u_disp,
+                    "Paycom Value": p_disp
+                })
+            
+            # Show Language (Info Only)
+            rows.append({
+                "Employee ID": eid,
+                "Status": "Info Only",
+                "Field": "Language",
+                "Uzio Value": "N/A",
+                "Paycom Value": p["Language"]
+            })
 
+        # Unmatched
         for u in u_pending:
             for f in FIELDS:
-                rows.append({"Employee ID": eid, "Status": STATUS_MISSING_PAYCOM, "Field": f, "Uzio Value": _get_val(u, f) if f != "Phone" else u["RawPhone"], "Paycom Value": ""})
+                rows.append({
+                    "Employee ID": eid,
+                    "Status": STATUS_MISSING_PAYCOM,
+                    "Field": f,
+                    "Uzio Value": _get_val(u, f) if f != "Phone" else u["RawPhone"],
+                    "Paycom Value": ""
+                })
+
         for p in p_pending:
             for f in FIELDS:
-                rows.append({"Employee ID": eid, "Status": STATUS_MISSING_UZIO, "Field": f, "Uzio Value": "", "Paycom Value": _get_val(p, f)})
+                rows.append({
+                    "Employee ID": eid,
+                    "Status": STATUS_MISSING_UZIO,
+                    "Field": f,
+                    "Uzio Value": "",
+                    "Paycom Value": _get_val(p, f)
+                })
 
     df_res = pd.DataFrame(rows)
+    
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
         df_res.to_excel(writer, sheet_name='Emergency_Contact_Audit', index=False)
         if not df_res.empty:
-            df_res.groupby(["Status", "Field"]).size().reset_index(name="Count").to_excel(writer, sheet_name='Summary', index=False)
+            summ = df_res.groupby(["Status", "Field"]).size().reset_index(name="Count")
+            summ.to_excel(writer, sheet_name='Summary', index=False)
+            
     return out.getvalue()
 
 def render_ui():
@@ -271,16 +333,41 @@ def render_ui():
     **Instructions**:
     1. Upload **Uzio Emergency Contact Export** (.xlsx).
     2. Upload **Paycom Census Export** (.csv or .xlsx).
+    
+    **Checks**:
+    - Emergency_{1,2,3}_Contact (Name)
+    - Emergency_{1,2,3}_Relationship
+    - Emergency_{1,2,3}_Phone
+    - Emergency_{1,2,3}_Language (Info Only)
     """)
+    
     client_name = st.text_input("Client Name", value="Client", key="paycom_emergency_client")
+
     col1, col2 = st.columns(2)
-    with col1: f_uzio = st.file_uploader("Uzio Emergency Export", type=["xlsx"], key="pec_u")
-    with col2: f_pay = st.file_uploader("Paycom Census Export", type=["xlsx", "csv"], key="pec_p")
+    with col1:
+        f_uzio = st.file_uploader("Uzio Emergency Export", type=["xlsx"], key="pec_u")
+    with col2:
+        f_pay = st.file_uploader("Paycom Census Export", type=["xlsx", "csv"], key="pec_p")
+
     if st.button("Run Audit", key="run_pec"):
-        if not f_uzio or not f_pay: st.error("Please upload both files."); return
+        if not f_uzio or not f_pay:
+            st.error("Please upload both files.")
+            return
+            
         try:
-            with st.spinner("Processing..."): report = run_audit(f_uzio, f_pay)
+            with st.spinner("Processing..."):
+                report = run_audit(f_uzio, f_pay)
+                
             if report:
                 st.success("Audit Complete!")
-                st.download_button("Download Report", data=report, file_name=f"{client_name}_Uzio_Paycom_Emergency_Audit_Report_{pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')}.xlsx")
-        except Exception as e: st.error(f"Error: {e}"); st.exception(e)
+                timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
+                filename = f"{client_name}_Uzio_Paycom_Emergency_Audit_Report_{timestamp}.xlsx"
+
+                st.download_button(
+                    "Download Report",
+                    data=report,
+                    file_name=filename
+                )
+        except Exception as e:
+            st.error(f"Error: {e}")
+            st.exception(e)

@@ -1,0 +1,30 @@
+# Excel Files (Data)
+*.xlsx
+*.xls
+*.csv
+!Deduction Analyzer/Deduction Setup Config.xlsx
+!templates/amazon_job_titles.csv
+
+# Sensitive Sample Data
+Sample Data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv
+venv
+env
+*.log
+.DS_Store
+
+# Security / Secrets
+.env
+.streamlit/secrets.toml
+**/.vscode/
+
+# Agent Artifacts
+.playwright-mcp/
+adp_*.png
+adp_*.md
+!adp_census_download.md
+! .agents/workflows/
