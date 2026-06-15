@@ -1,4 +1,7 @@
 streamlit
 pandas
-xlsxwriter
+numpy
 openpyxl
+xlsxwriter
+pyyaml
+anthropic
