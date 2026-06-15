@@ -1,0 +1,2328 @@
+#section: Other Tax Exemption keys always be the last to that state. This order is used for display perpose.
+withholding_es:
+  mappings:
+    FED:
+      FIT_FILING_STATUS:
+        label: Filing Status
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_WITHHOLDING_ALLOWANCE:
+        label: Withholding Allowance
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_W4_VERSION:
+        label: W4 Version
+        section: Federal Tax Withholding
+      FIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from federal tax withholding
+        section: Federal Tax Withholding
+      FIT_WITHHOLD_AS_NON_RESIDENT:
+        label: Withhold income taxes as a nonresident alien employee?
+        section: Federal Tax Withholding
+      FIT_HIGHER_WITHHOLDING:
+        label: Multiple Jobs
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_CHILD_AND_DEPENDENT_TAX_CREDIT:
+        label: Annual Child & Dependent  Credits
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_OTHER_INCOME:
+        label: Annual Other Income
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_DEDUCTIONS_OVER_STANDARD:
+        label: Annual Deductions
+        section: Federal Tax Withholding
+        includeInPayslip: true
+      FIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Federal Tax Withholding
+      FIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Federal Tax Withholding
+      FIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Federal Tax Withholding
+      FIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Federal Tax Withholding
+      FUTA_EXEMPTION:
+        label: futaExempt
+        section: Other Tax Exemption
+      FICA_SST_EXEMPTION:
+        label: ficaSSTExempt
+        section: Other Tax Exemption
+      FICA_MEDICARE_EXEMPTION:
+        label: ficaMedicareExempt
+        section: Other Tax Exemption
+      FICA_ADDL_MEDICARE_EXEMPTION:
+        label: ficaAddlMedicareExempt
+        section: Other Tax Exemption
+    AL:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS:
+        label: Number of Dependents
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+      CITY_TAX_EXEMPTION:
+        label: AL City Tax
+        section: Other Tax Exemption
+        applicable: WL
+      LOCAL_AREA_TAX_WITHHOLDING_EXEMPTION:
+        label: AL County Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+        
+    AK:
+      SIT_UNEMPLOYMENT_INSURANCE_EXEMPT:
+        label: AK State Unemployment Insurance Withholding
+        section: Other Tax Exemption
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    AR:
+      SIT_PERSONAL_EXEMPTION:
+        label: Claim Personal Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS :
+        label: Number of Dependents
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_LOW_INCOME_EXEMPTION:
+        label: Do you qualify for low income tax rates
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TEXARKANARESIDENT:
+        label: Texarkana Resident
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+    AZ:
+      PERCENTSTATE:
+        label: Withholding Percentage
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+    CA:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SDI_EE_EXEMPTION:
+        label: CA State Disability Insurance
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_REGULAR_ALLOWANCES:
+        label: Regular Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_ALLOWANCES:
+        label: Additional Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      WAGE_PLAN_CODE:
+        label: Wage Plan Code
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: CA Employment Training Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 06-000-0000-ER_SUTA_SC-004
+        applicable: WL
+    CT:
+      WITHHOLDING_CODE:
+        label: Withholding Code
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_REDUCED_WITHHOLDING_PER_PAY_PERIOD:
+        label: Reduced Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: Connecticut Paid Leave
+        section: Other Tax Exemption
+        applicable: WL
+    DC:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_BASIC_ALLOWANCES:
+        label: Withholding Allowances (Sec A, Line i)
+        section: Income Tax Withholding
+      SIT_ADDITIONAL_ALLOWANCES:
+        label: Withholding Allowances (Sec B, Line n)
+        section: Income Tax Withholding
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    DE:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      CITY_TAX_EXEMPTION:
+        label: DE City Tax
+        section: Other Tax Exemption
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: DE Training Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 10-000-0000-ER_SUTA_SC-008
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: DE Paid Family & Medical Leave
+        section: Other Tax Exemption    
+        applicable: WL         
+    GA:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Personal Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_ALLOWANCES:
+        label: Dependent Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_ALLOWANCES:
+        label: Georgia Adjustments Allowance
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exemption from state withholding tax?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    IL:
+      SIT_BASIC_ALLOWANCES:
+        label: Basic Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_ALLOWANCES:
+        label: Additional Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exemption from state withholding tax?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    IA:
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_ALLOWANCES_VALUE:
+        label: Personal Allowances
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_DEPENDENT_ALLOWANCES_VALUE:
+        label: Dependent Allowances
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_ITEMIZED_DEDUCTION_WORKSHEET_ALLOWANCES_VALUE:
+        label: Itemized Deductions Allowances
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_ADJUSTMENTS_ALLOWANCES_VALUE:
+        label: Adjustments Allowances
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_CHILD_AND_DEPENDENT_CARE_ALLOWANCES_VALUE:
+        label: Child and Dependent Care Allowances
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_PERSONAL_EXEMPTION_CREDIT_VALUE:
+        label: Personal Exemption Credit
+        section: Income Tax Withholding
+        includeInPayslip: false
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCE_VALUE:
+        label: Total Allowance
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    ID:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      NONRESIDENTPERCENT:
+        label: Nonresident Percentage
+        default: 0
+        section: Income Tax Withholding
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: ID State Unemployment Surcharge Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 16-000-0000-ER_SUTA_SC-049
+        applicable: WL
+    KS:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from withholding State Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    KY:
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: KY Surcharge Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 21-000-0000-ER_SUTA_SC-059
+        applicable: WL
+      SIT_City_Occupational_License_Fee_Exempt:
+        label: KY City Occupational License Fee
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_County_Occupational_License_Fee_Exempt:
+        label: KY County Occupational License Fee
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_Mental_Health_Tax_Exempt:
+        label: KY Mental Health Tax
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_Occupational_License_Tax_for_Schools_Exempt:
+        label: KY Occupational License Tax for Schools
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_Tax_Incremental_Financing_Exempt:
+        label: KY Tax Incremental Financing
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_Warren_County_ITA_Transpark_Tax_Exempt:
+        label: KY Warren County ITA Transpark Tax
+        section: Other Tax Exemption
+        applicable: WL
+      EE_KY_SCT_Exempt:
+        label: KY Campbell County - SCT
+        section: Other Tax Exemption
+        symmetryTaxId: 21-037-0000-SCT-000
+        applicable: WL     
+      
+    LA:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_NUMBER_OF_DEPENDENTS:
+        label: Total Dependents
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    MD:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    ME:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      NONRESIDENTPERCENT:
+        label: Nonresident Percentage
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: ME State Unemployment Surcharge Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 23-000-0000-ER_SUTA_SC-041
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: ME Paid Family & Medical Leave
+        section: Other Tax Exemption    
+        applicable: WL         
+    MI:
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_PREDOMINANT_CITY:
+        label: Predominant City
+        section: Income Tax Withholding
+      CITY_TAX_EXEMPTION:
+        label: Select City Tax
+        section: Income Tax Withholding
+        applicable: BOTH
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    MN:
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_STATUS:
+        label: Dependent Status
+        section: Income Tax Withholding
+      SIT_JOB_INCOME_ALLOWANCE:
+        label: Job & Income Allowance
+        section: Income Tax Withholding
+      SIT_MARITAL_STATUS:
+        label: Marital Status
+        section: Income Tax Withholding
+      SIT_DEPENDENT_ALLOWANCES:
+        label: Dependent Allowances
+        section: Income Tax Withholding
+      SIT_HOH:
+        label: Head of Household
+        section: Income Tax Withholding
+      SIT_ITEMIZED_DEDUCTION_WORKSHEET_ALLOWANCE:
+        label: Itemized Deduction Worksheet Allowances
+        section: Income Tax Withholding
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: MN Additional Assessment Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 27-000-0000-ER_SUTA_SC-042
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: MN Paid Family and Medical Leave
+        section: Other Tax Exemption
+        applicable: WL
+    MO:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_REDUCED_WITHHOLDING_PER_PAY_PERIOD:
+        label: Reduced Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      MO_KANSAS_CITY_TAX_EXEMPT:
+        label: MO Kansas City Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      MO_ST_LOUIS_CITY_TAX_EXEMPT:
+        label: MO St Louis City Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      POP_EXEMPTION:
+        label: MO St Louis Payroll Expense Tax
+        section: Other Tax Exemption
+        applicable: WL
+    MS:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_EXEMPTION_CLAIMED:
+        label: Spouse Exemption Claimed
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_EXEMPTION:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_EXEMPTION_AMOUNT:
+        label: Total Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: MS Workforce Training Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 28-000-0000-ER_SUTA_SC-020
+        applicable: WL
+    MT:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_MULTIPLE_JOB:
+        label: Multiple Jobs
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_REDUCED_WITHHOLDING_PER_PAY_PERIOD:
+        label: Specified Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: MT Administrative Fund Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 30-000-0000-ER_SUTA_SC-022
+        applicable: WL
+    NC:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    ND:
+      SIT_W4_VERSION:
+        label: W-4 Version
+        section: Income Tax Withholding
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    NE:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      NONRESIDENTPERCENT:
+        label: Nonresident Percentage
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        default: 0
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    NJ:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_RATETABLE:
+        label: Rate Code
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SDI_RATE:
+        label: State Disability Insurance Rate
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exemption from State Income tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: NJ Work Force Development
+        section: Other Tax Exemption
+        symmetryTaxId: 34-000-0000-ER_SUTA_SC-048
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: NJ Family Leave Insurance
+        section: Other Tax Exemption
+        applicable: WL
+      SDI_ER_EXEMPTION:
+        label: NJ SDI
+        section: Other Tax Exemption
+        applicable: WL
+      SDI_EE_EXEMPTION:
+        label: NJ State Disability Insurance
+        section: Other Tax Exemption
+        applicable: BOTH
+      SIT_UNEMPLOYMENT_INSURANCE_EXEMPT:
+        label: NJ State Unemployment Insurance
+        section: Other Tax Exemption
+        applicable: WL
+      
+    NM:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEDUCTIONS_OVER_STANDARD:
+        label: Annual Deductions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_OTHER_INCOME:
+        label: Annual other income
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      SIT_WCA_WITHHOLDING_EXEMPTION:
+        label: NM Workers' Compensation Assessment Fee Withholding
+        section: Other Tax Exemption
+        applicable: BOTH
+     
+    OK:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_BASIC_ALLOWANCES:
+        label: Personal Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_EMPLOYED:
+        label: Does Your spouse work?
+        section: Income Tax Withholding
+      SIT_DEPENDENT_ALLOWANCES:
+        label: Dependent Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_ALLOWANCES:
+        label: Additional Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from state withholding tax?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: OK Technology Fund
+        section: Other Tax Exemption
+        symmetryTaxId: 40-000-0000-ER_SUTA_SC-057
+        applicable: WL
+    RI:
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from state tax withholding ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: RI Job Development Surcharge
+        section: Other Tax Exemption
+        symmetryTaxId: 44-000-0000-ER_SUTA_SC-030
+        applicable: WL
+      SDI_EE_EXEMPTION:
+        label: RI State Disability Insurance
+        section: Other Tax Exemption
+        applicable: BOTH
+      
+    SC:
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income Tax Withholding?
+        section: Income Tax Withholding
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: SC SUI Admin Contingency Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 45-000-0000-ER_SUTA_SC-032
+        applicable: WL
+    TX:
+      SIT_TEXARKANARESIDENT:
+        label: Texarkana Resident
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    UT:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income Tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    PR:
+      SIT_OPTIONAL_MARRIED:
+        label: Optional Computation of Tax for Married Individuals
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_YOUTH_EXEMPTION:
+        label: Youth Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_EXEMPTION:
+        label: Personal Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_VETERANS_EXEMPTION:
+        label: Additional Veterans Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS_WITH_COMPLETE_EXEMPTION:
+        label: Number of Dependents with a Complete Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS_WITH_JOINT_CUSTODY_EXEMPTION:
+        label: Number of Dependents with a Joint Custody Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ALLOWANCE_BASED_ON_DEDUCTIONS_OPTIONAL:
+        label: Allowance Based on Deductions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD_TYPE:
+        label: Additional Withholding Per Pay Period Type
+        section: Income Tax Withholding 
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD_PERCENT:
+        label: Additional Withholding Per Pay Period Percent
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        symmetryTaxId: 72-000-0000-ER_SUTA-000
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: PR Special Assessment Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 72-000-0000-ER_SUTA_SC-029
+        applicable: WL
+      SDI_ER_EXEMPTION:
+        label: PR Employer SDI
+        section: Other Tax Exemption
+        symmetryTaxId: 72-000-0000-ER_SDI-002
+        applicable: WL
+      SDI_EE_EXEMPTION:
+        label: PR Disability Insurance Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 72-000-0000-SDI-000
+        applicable: WL
+    VT:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_ALLOWANCES:
+        label: Dependent Allowances
+        section: Income Tax Withholding
+      SIT_DEPENDENT_STATUS:
+        label: Dependent Status
+        section: Income Tax Withholding
+      SIT_HOH:
+        label: Head of Household
+        section: Income Tax Withholding
+      SIT_FILING_JOINTLY:
+        label: Are you filing jointly and your spouse doesn't work?
+        section: Income Tax Withholding
+      NONRESIDENTPERCENT:
+        label: Nonresident Percentage
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    VA:
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from State Income Tax Withholding?
+        section: Income Tax Withholding
+      SIT_TOTAL_ALLOWANCES:
+        label: Personal Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_AGE_AND_BLINDNESS_EXEMPTION:
+        label: Age and Blindness Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    WI:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_EXEMPTION:
+        label: Personal Exemption
+        section: Income Tax Withholding
+      SIT_SPOUSE_EXEMPTION:
+        label: Spouse Exemption
+        section: Income Tax Withholding
+      SIT_DEPENDENT_EXEMPTION:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    WV:
+      SIT_TWO_EARNER_PERCENT:
+        label: One income
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_EXEMPTION :
+        label: Personal Exemptions
+        section: Income Tax Withholding
+      SIT_NUMBER_OF_DEPENDENTS:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      CITY_TAX_EXEMPTION:
+        label: WV Local city Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    FL:  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    NH:  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    NV:  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption 
+        applicable: WL
+    SD:  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL  
+    TN:  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL   
+    NY:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      CITY_TOTALALLOWANCESNYC:
+        label: NYC Withholding Allowances
+        section: Income Tax Withholding
+      CITY_ADDITIONALWH_NYC:
+        label: NYC Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+      CITY_ADDITIONALWH_YONKERS:
+        label: Yonkers Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        symmetryTaxId: 36-000-0000-ER_SUTA_SC-025
+        applicable: WL
+      CITY_TAX_EXEMPTION:
+        label: NY City Tax Withholding
+        section: Other Tax Exemption
+        applicable: BOTH
+      ECET_ER_EXEMPTION:
+        label: NY ECET
+        section: Other Tax Exemption
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: NY Family Leave Insurance
+        section: Other Tax Exemption
+        applicable: WL
+      SDI_EE_EXEMPTION:
+        label: NY State Disability Insurance
+        section: Other Tax Exemption
+        applicable: WL
+    PA:
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from state tax Withholding?
+        section: Income Tax Withholding 
+      SIT_LOW_INCOME_EXEMPTION:
+        label: Low Income Exemption
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      EARNED_INCOME_TAX_EXEMPTION:
+        label: PA EIT Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      LOCAL_SERVICE_TAX_EXEMPTION:
+        label: PA LST Tax
+        section: Other Tax Exemption
+        applicable: WL
+      CITY_TAX_EXEMPTION:
+        label: PA Philadelphia City Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      POP_EXEMPTION:
+        label: PA Pittsburgh Payroll Tax
+        section: Other Tax Exemption
+        applicable: WL
+      POP_HAZLETON_EXEMPTION:
+        label: PA Hazleton Payroll Preparation Tax
+        section: Other Tax Exemption
+        applicable: WL
+      POP_SCRANTON_EXEMPTION:
+        label: PA Scranton Payroll Preparation Tax
+        section: Other Tax Exemption  
+        applicable: WL  
+      SIT_UNEMPLOYMENT_INSURANCE_EXEMPT:
+        label: PA State Unemployment Insurance Withholding
+        section: Other Tax Exemption
+        applicable: WL
+      
+    IN:
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_EXEMPTION:
+        label: Personal Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NON_RESIDENT_ALIEN:
+        label: Non Resident Alien
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_EXEMPTION:
+        label: Spouse Exemption
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_ALLOWANCES:
+        label: Qualifying Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_PERSONAL_EXEMPTIONS:
+        label: Total Personal Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDITIONAL_DEPENDENT_EXEMPTIONS:
+        label: Additional Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true 
+      SIT_ADOPTION_EXEMPTIONS:
+        label: Adoption Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true    
+      RESIDENT_COUNTY:
+        label: Residence County as of January 1
+        section: Income Tax Withholding
+      EMPLOYMENT_COUNTY:
+        label: Principal Employment County as of January 1
+        section: Income Tax Withholding
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional State Withholding
+        section: Income Tax Withholding
+        includeInPayslip: true
+      CNTY_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional County Withholding
+        section: Income Tax Withholding
+      SIT_SPOUSE_BLINDNESS:
+        label: Spouse is blind
+        section: Income Tax Withholding
+      SIT_SELF_BLINDNESS_EXEMPTION:
+        label: You are blind
+        section: Income Tax Withholding
+      SIT_SPOUSE_AGE_EXEMPTION:
+        label: Spouse is 65 or older
+        section: Income Tax Withholding
+      SIT_SELF_AGE_EXEMPTION:
+        label: You are 65 or older
+        section: Income Tax Withholding
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      LOCAL_AREA_TAX_WITHHOLDING_EXEMPTION:
+        label: IN County Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+    OR:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Exempt from state tax Withholding?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SIT_MULTNOMAH_COUNTY_PFA_TAX_FLAG:
+        label: Do you want to opt-in to a different withholding amount for Multnomah County PFA Tax?
+        section: Income Tax Withholding
+      SIT_MULTNOMAH_COUNTY_PFA_TAX_WITHHOLDING_PER_PAY_PERIOD:
+        label: Multnomah County PFA Tax Withholding Per Pay Period
+        section: Income Tax Withholding
+      SIT_METRO_SHS_TAX_FLAG:
+        label: Do you want to opt-in to a different withholding amount for Metro SHS Tax?
+        section: Income Tax Withholding
+      SIT_METRO_SHS_TAX_WITHHOLDING_PER_PAY_PERIOD:
+        label: Metro SHS Tax Withholding Per Pay Period
+        section: Income Tax Withholding  
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+      ER_TRANSIT_TAX_EXEMPTION:
+        label: OR Employer Transit Tax
+        section: Other Tax Exemption
+      TRANSIT_TAX_EXEMPTION:
+        label: OR Transit Tax
+        section: Other Tax Exemption
+      ER_WORKERS_COMPENSATION_TAX_EXEMPTION:
+        label: OR Workers' Compensation - Employer
+        section: Other Tax Exemption
+      EE_CSPT:
+        label: Eugene Community Safety Payroll Tax
+        section: Other Tax Exemption
+      ER_CSPT:
+        label: Eugene Community Safety Payroll Tax - Employer
+        section: Other Tax Exemption
+      MULTNOMAH_COUNTY_PFA_TAX_EXEMPTION:
+        label: OR Multnomah County PFA Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 41-051-0000-SST-002
+      METRO_SHS_TAX_EXEMPTION:
+        label: OR Metro SHS Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 41-000-0000-SST-001  
+    OH:
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_NUMBER_OF_DEPENDENTS:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_FILING_SEPARATE_RETURN:
+        label: Are you single, or is your spouse filing a separate Ohio return?
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_STATUS:
+        label: Dependent Status
+        section: Income Tax Withholding
+        includeInPayslip: trueF
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_TRANSIT_TAX_EXEMPTION:
+        label: OR Employer Transit Tax
+        section: Other Tax Exemption
+        applicable: WL
+      TRANSIT_TAX_EXEMPTION:
+        label: OR Transit Tax
+        section: Other Tax Exemption
+        applicable: WL
+      ER_WORKERS_COMPENSATION_TAX_EXEMPTION:
+        label: OR Workers' Compensation - Employer
+        section: Other Tax Exemption
+        applicable: WL
+      EE_CSPT:
+        label: Eugene Community Safety Payroll Tax
+        section: Other Tax Exemption
+        applicable: BOTH
+      ER_CSPT:
+        label: Eugene Community Safety Payroll Tax - Employer
+        section: Other Tax Exemption
+        applicable: WL
+      MULTNOMAH_COUNTY_PFA_TAX_EXEMPTION:
+        label: OR Multnomah County PFA Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 41-051-0000-SST-002
+        applicable: WL
+      METRO_SHS_TAX_EXEMPTION:
+        label: OR Metro SHS Tax
+        section: Other Tax Exemption  
+        symmetryTaxId: 41-000-0000-SST-001 
+        applicable: WL
+    CO:
+#      SIT_W4_VERSION:
+#        label: W-4 Version
+#        section: Income Tax Withholding
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+#      SIT_TOTAL_ALLOWANCES:
+#        label: Total Allowances
+#        section: Income Tax Withholding
+#        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SIT_EMPLOYEE_WITHHOLDING_CERTIFICATE:
+        label: Do you wish to opt for the Employee Withholding Certificate (DR 0004)?
+        section: Income Tax Withholding
+      SIT_ANNUAL_WITHHOLDING_ALLOWANCE:
+        label: Annual Withholding Allowance
+        section: Income Tax Withholding  
+      ER_WORKERS_COMPENSATION_TAX_EXEMPTION:
+        label: CO Workers' Compensation - Employer
+        section: Other Tax Exemption
+        applicable: WL
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: CO State Unemployment Surcharge Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 08-000-0000-ER_SUTA_SC-063
+        applicable: WL
+    WA:
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: WA Paid Family & Medical Leave
+        section: Other Tax Exemption
+        applicable: WL
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      EE_LTI:
+        label: WA Long-Term Care Insurance
+        section: Other Tax Exemption  
+        symmetryTaxId: 53-000-0000-LTI-000
+        applicable: WL
+    MA:
+      SIT_PERSONAL_EXEMPTIONS:
+        label: Personal Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_EXEMPTIONS:
+        label: Spouse Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_DEPENDENT_EXEMPTIONS:
+        label: Dependent Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Exemptions
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PERSONAL_BLINDNESS:
+        label: Personal Blindness
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_SPOUSE_BLINDNESS:
+        label: Spouse Blindness
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_HOH:
+        label: Head of Household
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_FULL_TIME_STUDENT:
+        label: Full Time Student
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      EE_FAMILY_LEAVE_INSURANCE_EXEMPT:
+        label: MA Paid Family and Medical Leave
+        section: Other Tax Exemption
+        applicable: WL
+      ER_EMAC_EXEMPTION:
+        label: MA Medical Assistance Contrib
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: MA State Unemployment Surcharge Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 25-000-0000-ER_SUTA_SC-018
+        applicable: WL
+    HI:
+      SIT_FILING_STATUS:
+        label: Filing Status
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_TOTAL_ALLOWANCES:
+        label: Total Allowances
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_ADDL_WITHHOLDING_PER_PAY_PERIOD:
+        label: Additional Withholding Per Pay Period
+        section: Income Tax Withholding
+        includeInPayslip: true
+      SIT_WITHHOLDING_EXEMPTION:
+        label: Do you want to stop the system from withholding State Income Tax ?
+        section: Income Tax Withholding
+      SIT_PAY_HOME_TAXES:
+        label: Pay Home Taxes ?
+        section: Income Tax Withholding
+      SIT_RESIDENCY_CERTIFICATE:
+        label: Non-Residency Certificate ?
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_AMOUNT:
+        label: Override Income Tax Withholding Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_TYPE:
+        label: Override Type
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE:
+        label: Override Amount
+        section: Income Tax Withholding
+      SIT_OVERRIDE_TAX_WITHOLDING_VALUE_PERCENT:
+        label: Override Percentage
+        section: Income Tax Withholding
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL
+      ER_SUTA_SC_EXEMPTION:
+        label: HI Employment And Training Tax
+        section: Other Tax Exemption
+        symmetryTaxId: 15-000-0000-ER_SUTA_SC-012
+        applicable: WL
+    WY:
+      SUTA_EXEMPTION:
+        label: worklocationSUTAExempt
+        section: Other Tax Exemption
+        applicable: WL

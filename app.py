@@ -2,7 +2,7 @@ import streamlit as st
 import importlib
 
 # Set Page Config (Must be first)
-st.set_page_config(page_title="AI Powered Audit Hub", layout="wide", page_icon="🤖")
+st.set_page_config(page_title="Data Migration Assistant", layout="wide", page_icon="🤖")
 
 # Custom CSS for UI enhancements
 st.markdown("""
@@ -107,7 +107,7 @@ st.markdown("""
 # Sidebar Navigation Grouping
 # ---------------------------------------------------------
 with st.sidebar:
-    st.markdown('<div class="ai-title">AI Powered<br>Audit Hub</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ai-title">Data Migration<br>Assistant</div>', unsafe_allow_html=True)
     st.markdown("---")
     
     # 1. Select Provider
