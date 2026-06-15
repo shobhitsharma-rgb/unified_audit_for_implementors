@@ -119,22 +119,17 @@ with st.sidebar:
     
     if provider == "ADP":
         st.markdown('<div class="provider-header">ADP Tools</div>', unsafe_allow_html=True)
+        # NOTE (implementors build only): the sidebar intentionally exposes a
+        # CURATED SUBSET of tools. The root Unified_Audit_Tool keeps the full
+        # list and all dispatch branches below remain intact -- do NOT blindly
+        # re-mirror app.py from root over this file.
         tool_option = st.radio("Select ADP Tool", [
             "ADP - Census Sanity Check",
             "ADP - Census Audit",
-            "ADP - Selective Census Sync",
             "ADP - Payment Method Sanity Check",
             "ADP - Payment Audit",
             "ADP - FIT/SIT Sanity Check",
-            "ADP - Withholding Audit",
-            "ADP - Deduction Audit",
-            "ADP - Prior Payroll Sanity Check",
-            "ADP - Prior Payroll Audit Tool",
-            "ADP - Prior Payroll Setup Helper",
-            "ADP - Payroll Setup Agent",
-            "ADP - Emergency Contact Audit",
-            "ADP - Time Off Tool",
-            "ADP - License Details Audit"
+            "ADP - Withholding Audit"
         ], index=0, label_visibility="collapsed")
         
     elif provider == "Paycom":
@@ -142,14 +137,8 @@ with st.sidebar:
         tool_option = st.radio("Select Paycom Tool", [
             "Paycom - Census Sanity Check",
             "Paycom - Census Audit",
-            "Paycom - Selective Census Sync",
-            "Paycom - Withholding Audit",
             "Paycom - Payment Audit",
-            "Paycom - Deduction Audit",
-            "Paycom - Prior Payroll Setup Helper",
-            "Paycom - Prior Payroll Audit Tool",
-            "Paycom - Emergency Contact Audit",
-            "Paycom - Time Off Tool"
+            "Paycom - Withholding Audit"
         ], index=0, label_visibility="collapsed")
         
     elif provider == "Common Utilities":
