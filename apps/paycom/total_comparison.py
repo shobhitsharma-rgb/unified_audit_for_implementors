@@ -557,7 +557,16 @@ def render_ui():
     2.  **UZIO Prior Payroll Register File** (Excel/CSV)
     3.  **4 Mapping Files** (Earnings, Deductions, Contributions, Taxes)
     """)
-    
+
+    st.info(
+        "📋 **Reminder — Check the Uzio Payroll Allocation Report for negative taxable wages**\n\n"
+        "Always download the **Uzio Payroll Allocation Report** and verify that **no employee "
+        "has negative taxable wages**. If an employee shows negative taxable wages, that "
+        "paystub must be **refreshed** before you rely on these totals. These negative entries "
+        "are easy to identify — they appear as the **red-marked entries** in the Payroll "
+        "Allocation Report."
+    )
+
     with st.expander("📁 Upload Payroll Reports", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
