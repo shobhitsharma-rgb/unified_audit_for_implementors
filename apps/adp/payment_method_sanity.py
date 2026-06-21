@@ -668,8 +668,13 @@ and auto-correct unsupported configurations.
         timestamp = pd.Timestamp.now().strftime("%d_%m_%Y_%H%M")
         xlsx_name = f"{client_name}_ADP_Payment_Method_Sanity_{timestamp}.xlsx"
         csv_name = f"{client_name}_ADP_Payment_Method_Corrected_{timestamp}.csv"
+        changelog_name = f"{client_name}_ADP_Payment_Method_ChangeLog_{timestamp}.csv"
 
-        col1, col2 = st.columns(2)
+        # Change Log = every fix / flag the tool recorded (one row per action:
+        # Employee ID, Name, Rule, Severity, Issue, Action). Plain UTF-8, no BOM.
+        changelog_bytes = issues_df.to_csv(index=False).encode("utf-8")
+
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.download_button(
                 label="📊 Download Full Report (.xlsx)",
@@ -686,6 +691,14 @@ and auto-correct unsupported configurations.
                 file_name=csv_name,
                 mime="text/csv",
                 key="adp_pm_sanity_dl_csv",
+            )
+        with col3:
+            st.download_button(
+                label="📝 Download Change Log (.csv)",
+                data=changelog_bytes,
+                file_name=changelog_name,
+                mime="text/csv",
+                key="adp_pm_sanity_dl_changelog",
             )
 
 
