@@ -162,6 +162,60 @@ def _dedup_accounts(rows: list):
     return kept, dropped
 
 
+# ---------------------------------------------------------
+# Rule R6 — eliminate Partial % 0.00. The API rejects any Deposit Percent of 0
+# ("Deposit Percent amount must be greater than 0"). When the distribution logic
+# leaves an account at Partial % 0 (the orphaned extra-Full situation), re-allot
+# so EVERY account is a positive Partial % summing to 100. Accounts carrying a
+# real SOURCE percentage keep it; the remaining 100% is split equally among the
+# accounts with no real percentage. When no account has a real source percentage
+# (the common case here), this is a clean equal split (2 -> 50/50, 3 ->
+# 33.33/33.33/33.34, 4 -> 25/25/25/25). No 'Full' and no 0.00 remain.
+# ---------------------------------------------------------
+def _split_equally(total: float, n: int):
+    """Split `total` into n shares (2 decimals) summing exactly to `total`; any
+    rounding remainder lands on the last share."""
+    if n <= 0:
+        return []
+    base = math.floor(total * 100 / n) / 100.0
+    shares = [base] * (n - 1)
+    shares.append(round(total - base * (n - 1), 2))
+    return shares
+
+
+def _eliminate_zero_percents(rows: list) -> bool:
+    """If any account ended up at Partial % 0, re-allot positive percentages
+    across all accounts (see Rule R6 above). Returns True if it changed rows."""
+    has_zero = any(
+        r["fixed_type"] == DEPOSIT_PARTIAL_PCT
+        and (r["fixed_percent"] is None or r["fixed_percent"] <= 0)
+        for r in rows
+    )
+    if not has_zero or len(rows) < 2:
+        return False
+
+    real_pct = [r for r in rows if r["percent"] is not None and r["percent"] > 0]
+    kept_sum = sum(r["percent"] for r in real_pct)
+    fill = [r for r in rows if r not in real_pct]
+    remainder = round(100.0 - kept_sum, 2)
+
+    # No headroom (real percentages already total >= 100) -> clean equal split
+    # across every account instead.
+    if remainder <= 0 or not fill:
+        real_pct, fill, remainder = [], list(rows), 100.0
+
+    shares = _split_equally(remainder, len(fill))
+    for r in real_pct:
+        r["fixed_type"] = DEPOSIT_PARTIAL_PCT
+        r["fixed_percent"] = _round2(r["percent"])
+        r["fixed_amount"] = None
+    for r, share in zip(fill, shares):
+        r["fixed_type"] = DEPOSIT_PARTIAL_PCT
+        r["fixed_percent"] = share
+        r["fixed_amount"] = None
+    return True
+
+
 def _fix_employee(rows: list, issues: list, emp_id: str, emp_name: str):
     """Mutate `rows` in place to a Uzio-compatible distribution and append issues.
 
@@ -495,16 +549,18 @@ def run_sanity(adp_file):
             "fixed_amount": None,
         })
 
-    # Rule A — collapse duplicate same-account rows (keep latest effective date),
-    # then analyze + fix each employee on the de-duplicated rows.
+    # Rule A — collapse duplicate same-account rows (keep latest effective date);
+    # fix each employee; then Rule R6 — eliminate any Partial % 0.00 by
+    # re-allotting positive percentages across all accounts.
     issues: list[dict] = []
     dropped_idx: set = set()
     for emp_id in order:
+        emp_issues: list[dict] = []
         kept, dropped = _dedup_accounts(per_emp[emp_id])
         if dropped:
             for d in dropped:
                 dropped_idx.add(d["idx"])
-            issues.append({
+            emp_issues.append({
                 "Employee ID": emp_id,
                 "Employee Name": emp_name_map.get(emp_id, ""),
                 "Rule": "R1",
@@ -517,7 +573,24 @@ def run_sanity(adp_file):
                 "Action": "Kept the latest effective date and removed the older duplicate row(s).",
             })
             per_emp[emp_id] = kept
-        _fix_employee(per_emp[emp_id], issues, emp_id, emp_name_map.get(emp_id, ""))
+        fix_issues: list[dict] = []
+        _fix_employee(per_emp[emp_id], fix_issues, emp_id, emp_name_map.get(emp_id, ""))
+        if _eliminate_zero_percents(per_emp[emp_id]):
+            # R6 re-allotment supersedes the intermediate distribution notes.
+            fix_issues = [{
+                "Employee ID": emp_id,
+                "Employee Name": emp_name_map.get(emp_id, ""),
+                "Rule": "R6",
+                "Severity": "Auto-Fix",
+                "Issue": "An account had Deposit Percent 0.00, which the API rejects.",
+                "Action": (
+                    "Re-allotted percentages so every account is a positive Partial % "
+                    "summing to 100% (kept real source percentages; split the remainder "
+                    "equally among the rest)."
+                ),
+            }]
+        emp_issues.extend(fix_issues)
+        issues.extend(emp_issues)
 
     # Build the corrected dataframe (preserve column order; rewrite the 3 fields)
     df_fixed = df.copy()
