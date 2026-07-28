@@ -1022,7 +1022,7 @@ def render_ui():
         st.download_button(
             label="Download Full Comparison Report",
             data=report_data,
-            file_name=f"{(client_name.strip() or 'Client')}_Uzio_ADP_PriorPayroll_Audit_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            file_name=f"{(client_name.strip() or 'Client')}_Uzio_ADP_PriorPayroll_Audit_Report_{pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="tc_download_v2",
             use_container_width=True
