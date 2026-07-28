@@ -1489,9 +1489,9 @@ def render_ui():
         st.subheader("Mismatch Summary")
         st.dataframe(result.mismatch_summary, hide_index=True, use_container_width=True)
 
-    # ── Download — spec filename: ADP_vs_UZIO_FIT_SIT_Mismatch_Report_<Client>.xlsx
+    # ── Download — spec filename: <Client>_Uzio_ADP_Withholding_Audit_Report_<ts>.xlsx
     timestamp = datetime.now().strftime("%d_%m_%Y_%H%M")
-    filename = f"ADP_vs_UZIO_FIT_SIT_Mismatch_Report_{client_name}_{timestamp}.xlsx"
+    filename = f"{client_name}_Uzio_ADP_Withholding_Audit_Report_{timestamp}.xlsx"
     st.download_button(
         "📥 Download full Excel report",
         data=build_workbook(result),

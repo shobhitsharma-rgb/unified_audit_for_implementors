@@ -591,6 +591,8 @@ def render_ui():
             ded_file = st.file_uploader("Deductions Mapping File", type=["xlsx", "xls", "csv"], key="pc_tc_m_ded")
             tax_file = st.file_uploader("Taxes Mapping File", type=["xlsx", "xls", "csv"], key="pc_tc_m_tax")
 
+    client_name = st.text_input("Client Name", key="pc_tc_client_name")
+
     if "pc_audit_results" not in st.session_state:
         st.session_state.pc_audit_results = None
     if "pc_audit_emp_mismatches" not in st.session_state:
@@ -686,7 +688,7 @@ def render_ui():
             st.download_button(
                 label="Download Full Comparison Report",
                 data=report_data,
-                file_name=f"Paycom_prior_payroll_audit_report.xlsx",
+                file_name=f"{(client_name.strip() or 'Client')}_Uzio_Paycom_PriorPayroll_Audit_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="pc_tc_download"
             )

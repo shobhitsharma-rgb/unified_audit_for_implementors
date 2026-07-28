@@ -812,6 +812,8 @@ def render_ui():
         key="tc_upload_mode"
     )
 
+    client_name = st.text_input("Client Name", key="tc_client_name")
+
     adp_files = []
     uzio_file = earn_file = cont_file = ded_file = tax_file = None
 
@@ -1020,7 +1022,7 @@ def render_ui():
         st.download_button(
             label="Download Full Comparison Report",
             data=report_data,
-            file_name="Prior payroll audit report.xlsx",
+            file_name=f"{(client_name.strip() or 'Client')}_Uzio_ADP_PriorPayroll_Audit_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="tc_download_v2",
             use_container_width=True
