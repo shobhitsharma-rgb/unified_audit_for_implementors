@@ -1225,7 +1225,7 @@ def render_ui():
                         "NOT a data-entry error. See the Leading_Zero_Issues tab; the Paycom value is correct."
                     )
                 timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
-                filename = f"{client_name}_Consolidated_Audit_Report_{timestamp}.xlsx"
+                filename = f"{client_name}_Uzio_Paycom_Consolidated_Audit_Report_{timestamp}.xlsx"
                 
                 st.download_button(
                     label=f"Download {client_name} Consolidated Audit Report",

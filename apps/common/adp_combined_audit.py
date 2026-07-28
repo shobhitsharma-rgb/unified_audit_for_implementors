@@ -462,7 +462,7 @@ def render_ui():
         st.download_button(
             label=f"Download {display_client} Consolidated Audit Report",
             data=report_bytes,
-            file_name=f"ADP_{safe_client}_Consolidated_Audit_Report_{ts}.xlsx",
+            file_name=f"{safe_client}_Uzio_ADP_Consolidated_Audit_Report_{ts}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary",
         )
