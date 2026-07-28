@@ -405,7 +405,7 @@ def render_ui():
                       st.dataframe(result_df)
 
                       # Download Button
-                      output_filename = f"{client_name.strip()}_Uzio_ADP_License_Audit_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                      output_filename = f"{client_name.strip()}_Uzio_ADP_License_Audit_Report_{datetime.now().strftime('%d_%m_%Y_%H%M')}.xlsx"
                       
                       buffer = io.BytesIO()
                       with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
