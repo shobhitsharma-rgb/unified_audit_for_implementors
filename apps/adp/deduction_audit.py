@@ -317,6 +317,13 @@ def _generate_output(results):
         field_summary.to_excel(writer, sheet_name="Field_Summary_By_Status")
         df_res.drop(columns=["Field"], inplace=True)
         df_res.to_excel(writer, sheet_name="Audit Details", index=False)
+        # Keep only Employee ID visible; hide the ADP ID / Uzio ID columns in the download.
+        from openpyxl.utils import get_column_letter
+        _ws_details = writer.sheets["Audit Details"]
+        for _hide_col in ["ADP ID", "Uzio ID"]:
+            if _hide_col in df_res.columns:
+                _ci = df_res.columns.get_loc(_hide_col)
+                _ws_details.column_dimensions[get_column_letter(_ci + 1)].hidden = True
     
     return out_buffer.getvalue(), None, []
 
