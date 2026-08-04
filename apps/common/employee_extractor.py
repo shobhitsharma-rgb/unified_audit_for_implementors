@@ -24,7 +24,7 @@ def render_employee_extractor():
             help="Supported: ADP Census, Paycom Census, ADP Direct Deposit, **Uzio Multi-Client Census** (Employee Details sheet), **ADP Emergency & License Report**"
         )
     with col_u2:
-        ref_file = st.file_uploader("2. Upload REFERENCE Order (Uzio Census) - OPTIONAL", type=["xlsx", "xlsm"], key="ee_ref")
+        ref_file = st.file_uploader("2. Upload REFERENCE Order (Uzio Census) - OPTIONAL", type=["xlsx", "csv", "xlsm"], key="ee_ref")
 
     if not source_file:
         st.info("Please upload a source file to begin.")
@@ -156,19 +156,40 @@ def render_employee_extractor():
     ref_order_ids = []  # reference file order, preserved so manual IDs can act as a filter
     if ref_file:
         try:
-            # Attempt to read Uzio Multi-Client Template
-            # Usually 'Employee Details' sheet, Header row 4 (index 3)
-            df_ref = pd.read_excel(ref_file, sheet_name='Employee Details', header=3, dtype=str)
-            ref_id_col = ' Employee ID*'
-            if ref_id_col in df_ref.columns:
+            # Reference can be a Uzio Census (xlsx/xlsm, 'Employee Details' sheet,
+            # header row 4) OR a CSV with an Employee ID column.
+            ref_file.seek(0)
+            if ref_file.name.lower().endswith('.csv'):
+                _ref_peek = pd.read_csv(ref_file, header=None, nrows=10, dtype=str)
+                _ref_hdr = 0
+                _REF_KW = ['associate id', 'employee_code', 'employee id*', 'employee id', 'employee code', 'ee id']
+                for _ri, _rrow in _ref_peek.iterrows():
+                    _rvals = [str(x).lower().strip() for x in _rrow.tolist() if pd.notna(x)]
+                    if any(k in _rvals for k in _REF_KW):
+                        _ref_hdr = _ri
+                        break
+                ref_file.seek(0)
+                df_ref = pd.read_csv(ref_file, header=_ref_hdr, dtype=str)
+            else:
+                df_ref = pd.read_excel(ref_file, sheet_name='Employee Details', header=3, dtype=str)
+            # Resolve the reference ID column (same candidates as the source).
+            _ref_cands = ['ASSOCIATE ID', 'Associate ID', 'Employee_Code', ' Employee ID*', 'Employee ID', 'Employee Code', 'EE ID']
+            ref_id_col = next((c for c in _ref_cands if c in df_ref.columns), None)
+            if not ref_id_col:
+                for _rc in df_ref.columns:
+                    _rcn = str(_rc).lower().strip().replace('*', '').replace(' ', '_')
+                    if _rcn in ['associate_id', 'employee_id', 'employee_code', 'ee_id', 'eid', 'associateid', 'eeid']:
+                        ref_id_col = _rc
+                        break
+            if ref_id_col:
                 ref_order_ids = df_ref[ref_id_col].dropna().unique().tolist()
                 ordered_ids = list(ref_order_ids)
                 ref_ids_set = set(ref_order_ids)
-                st.info(f"Loaded **{len(ref_order_ids)}** IDs from Uzio Reference (Order strictly matched).")
+                st.info(f"Loaded **{len(ref_order_ids)}** IDs from Reference (Order strictly matched).")
             else:
-                st.error("Reference file uploaded but ' Employee ID*' column not found in 'Employee Details' sheet.")
+                st.error("Reference file uploaded but no Employee ID column was found. Headers: " + ", ".join(str(c) for c in df_ref.columns[:10]))
         except Exception as e:
-            st.error(f"Error reading Reference file: {e}. Ensure it is a valid Uzio Census Template.")
+            st.error(f"Error reading Reference file: {e}. Ensure it is a valid Uzio Census (xlsx/xlsm) or a CSV with an Employee ID column.")
     
     # Manual Input (Fallback or Hybrid)
     manual_ids_input = st.text_area("Paste Employee IDs (Comma-separated) - Use this if no reference file or to override", 
