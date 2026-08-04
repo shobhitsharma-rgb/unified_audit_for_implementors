@@ -153,6 +153,7 @@ def render_employee_extractor():
     
     ordered_ids = []
     ref_ids_set = set()
+    ref_order_ids = []  # reference file order, preserved so manual IDs can act as a filter
     if ref_file:
         try:
             # Attempt to read Uzio Multi-Client Template
@@ -160,9 +161,10 @@ def render_employee_extractor():
             df_ref = pd.read_excel(ref_file, sheet_name='Employee Details', header=3, dtype=str)
             ref_id_col = ' Employee ID*'
             if ref_id_col in df_ref.columns:
-                ordered_ids = df_ref[ref_id_col].dropna().unique().tolist()
-                ref_ids_set = set(ordered_ids)
-                st.info(f"Loaded **{len(ordered_ids)}** IDs from Uzio Reference (Order strictly matched).")
+                ref_order_ids = df_ref[ref_id_col].dropna().unique().tolist()
+                ordered_ids = list(ref_order_ids)
+                ref_ids_set = set(ref_order_ids)
+                st.info(f"Loaded **{len(ref_order_ids)}** IDs from Uzio Reference (Order strictly matched).")
             else:
                 st.error("Reference file uploaded but ' Employee ID*' column not found in 'Employee Details' sheet.")
         except Exception as e:
@@ -171,11 +173,31 @@ def render_employee_extractor():
     # Manual Input (Fallback or Hybrid)
     manual_ids_input = st.text_area("Paste Employee IDs (Comma-separated) - Use this if no reference file or to override", 
                                    height=100, 
-                                   help="IDs provided here will be used in exactly this order.")
-    if manual_ids_input.strip():
-        manual_ids = [i.strip() for i in manual_ids_input.split(',') if i.strip()]
-        if ordered_ids:
-            st.warning("Both Reference File and Manual IDs provided. **Using Manual List** for final sequence.")
+                                   help="IDs provided here select which employees to extract. Use the sequencing option below to pick the output order when a reference file is present.")
+    manual_ids = [i.strip() for i in manual_ids_input.split(',') if i.strip()] if manual_ids_input.strip() else []
+
+    if manual_ids and ref_order_ids:
+        # Both a reference file AND a manual list are present -- let the user choose the output order.
+        seq_choice = st.radio(
+            "Which order should the output follow?",
+            ["Reference file order (Uzio Census)", "My manual list order"],
+            index=0,  # default: follow the reference file order
+            horizontal=True,
+            help=("Default: output follows the Uzio reference file's row order, and your manual IDs "
+                  "act only as a filter (which employees to keep). Choose 'My manual list order' to "
+                  "use the exact order you typed above instead."),
+        )
+        if seq_choice.startswith("Reference"):
+            _manual_set = set(manual_ids)
+            _in_ref = [i for i in ref_order_ids if i in _manual_set]
+            _leftover = [i for i in manual_ids if i not in ref_ids_set]
+            ordered_ids = _in_ref + _leftover
+            if _leftover:
+                st.caption(f"{len(_leftover)} manual ID(s) not present in the reference file were appended at the end.")
+        else:
+            ordered_ids = manual_ids
+    elif manual_ids:
+        # Only a manual list -- use it as-is (selection + order).
         ordered_ids = manual_ids
 
     # --- PROGRESSIVE ID MATCHING HELPERS ---
