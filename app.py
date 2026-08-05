@@ -128,6 +128,8 @@ with st.sidebar:
             "ADP - Census Audit",
             "ADP - Payment Method Sanity Check",
             "ADP - Payment Audit",
+            "ADP - Emergency Contact Audit",
+            "ADP - License Details Audit",
             "ADP - FIT/SIT Sanity Check",
             "ADP - Withholding Audit"
         ], index=0, label_visibility="collapsed")
