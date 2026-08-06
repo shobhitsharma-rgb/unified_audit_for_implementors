@@ -295,6 +295,13 @@ FIXED_DOLLAR_MASTERS = {
     "reverse / reissue",
 }
 
+# Masters that always use % of Gross Pay: 401k / Roth 401k deferrals are
+# percent-of-pay elections in UZIO (the 401(k) Loan master stays Fixed $).
+PCT_GROSS_MASTERS = {
+    "401k",
+    "roth 401k",
+}
+
 # Benefit-type deductions show the "Auto-Sync from Uzio Benefits" radio on the
 # UZIO form. Detected by keyword on the mapped Master Deductions List value.
 # Per the implementor's spec: dental, medical, vision, voluntary life (child/
@@ -868,14 +875,17 @@ def determine_method(uzio_master, type_description):
     Rules (in priority order):
       1. Garnishment-style masters -> % of Disposable Net Pay
       2. Fixed-dollar masters (child support, loans, etc.) -> Fixed $
-      3. Paycom description contains "%" -> % of Gross Pay
-      4. Otherwise -> Fixed $
+      3. 401k / Roth 401k deferrals -> % of Gross Pay
+      4. Paycom description contains "%" -> % of Gross Pay
+      5. Otherwise -> Fixed $
     """
     master_l = (uzio_master or "").strip().lower()
     if master_l in DISPOSABLE_INCOME_MASTERS:
         return METHOD_PCT_DISPOSABLE
     if master_l in FIXED_DOLLAR_MASTERS:
         return METHOD_FIXED
+    if master_l in PCT_GROSS_MASTERS:
+        return METHOD_PCT_GROSS
     if "%" in (type_description or ""):
         return METHOD_PCT_GROSS
     return METHOD_FIXED

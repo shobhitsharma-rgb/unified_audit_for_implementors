@@ -5,7 +5,13 @@ import re
 from utils.audit_utils import clean_money_val, norm_colname
 
 def load_mapping(file, cat_name, adp_col, uzio_col):
-    """Load a mapping file and return a list of mappings (ADP_Name, UZIO_Name)."""
+    """Load a mapping file. Returns (mappings, incomplete):
+      mappings   - rows with BOTH sides filled: {Category, ADP_Name, UZIO_Name}
+      incomplete - rows where the source name is filled but the UZIO side is
+                   blank ({Category, ADP_Name}). These are NOT silently dropped:
+                   run_comparison flags any money found under them as a
+                   '(MAPPING INCOMPLETE)' mismatch so an unfinished mapping row
+                   can never hide real amounts from the audit."""
     try:
         file.seek(0)
         if str(file.name).lower().endswith('.csv'):
@@ -14,29 +20,34 @@ def load_mapping(file, cat_name, adp_col, uzio_col):
             df = pd.read_excel(file)
         # Normalize headers to find columns
         df.columns = [norm_colname(c) for c in df.columns]
-        
+
         # Finding the actual column names in the sheet
         actual_adp_col = next((c for c in df.columns if adp_col.lower() in c.lower()), None)
         actual_uzio_col = next((c for c in df.columns if uzio_col.lower() in c.lower()), None)
-        
+
         if not actual_adp_col or not actual_uzio_col:
             st.warning(f"Could not find exact columns in {cat_name} mapping. Looking for '{adp_col}' and '{uzio_col}'. Available: {list(df.columns)}")
-            return []
-            
+            return [], []
+
         mappings = []
+        incomplete = []
         for _, row in df.iterrows():
             a_val = str(row[actual_adp_col]).strip()
             u_val = str(row[actual_uzio_col]).strip()
-            if a_val and u_val and a_val.lower() != 'nan' and u_val.lower() != 'nan':
+            a_ok = bool(a_val) and a_val.lower() != 'nan'
+            u_ok = bool(u_val) and u_val.lower() != 'nan'
+            if a_ok and u_ok:
                 mappings.append({
                     "Category": cat_name,
                     "ADP_Name": a_val,
                     "UZIO_Name": u_val
                 })
-        return mappings
+            elif a_ok and not u_ok:
+                incomplete.append({"Category": cat_name, "ADP_Name": a_val})
+        return mappings, incomplete
     except Exception as e:
         st.error(f"Error loading {cat_name} mapping: {e}")
-        return []
+        return [], []
 
 def format_pay_date(date_val):
     if pd.isna(date_val) or str(date_val).strip() in ["", "nan", "NaT"]:
@@ -526,7 +537,59 @@ def compute_tax_rate_verification(df_uzio, uzio_top, adp_data_list, mappings):
     return pd.DataFrame(rows)
 
 
-def run_comparison(adp_files, uzio_file, mappings):
+# Structural / informational column keywords — these are DELIBERATELY not in
+# the mapping files (wage bases, totals, hours, memos, payment splits) and must
+# never be reported as "unmapped money".
+_UNMAPPED_EXCLUDE_KEYWORDS = (
+    "taxable", "total", "hours", "memo", "direct deposit",
+    "gross", "net pay", "take home",
+)
+
+
+def find_unmapped_money_columns(adp_data_list, mappings, incomplete_mappings=None):
+    """Tier-2 review list: ADP columns that carry money, LOOK like a mappable
+    item (tax / earning / deduction naming shapes), but appear in no mapping
+    file at all — neither as a complete row nor an incomplete one.
+
+    Positive pattern match only; anything hitting _UNMAPPED_EXCLUDE_KEYWORDS is
+    skipped. Returns an informational DataFrame (never mismatch rows)."""
+    covered = {norm_colname(m["ADP_Name"]).lower() for m in (mappings or [])}
+    covered |= {norm_colname(i["ADP_Name"]).lower() for i in (incomplete_mappings or [])}
+
+    totals = {}
+    for df_a, _adp_top, _ in adp_data_list:
+        eid_col = next((c for c in df_a.columns if any(
+            x in str(c).lower() for x in ["associate id", "employee id", "file #"])), None)
+        work = _filter_data_rows(df_a, eid_col)
+        for i, col in enumerate(df_a.columns):
+            cl = str(col).strip().lower()
+            if not cl or cl.startswith("unnamed"):
+                continue
+            if any(k in cl for k in _UNMAPPED_EXCLUDE_KEYWORDS):
+                continue
+            looks_mappable = (
+                cl.endswith("- employee tax") or cl.endswith("- employer tax")
+                or cl.startswith("additional earnings") or cl.startswith("voluntary deduction")
+                or cl in ("regular earnings", "overtime earnings")
+            )
+            if not looks_mappable:
+                continue
+            if norm_colname(str(col)).lower() in covered:
+                continue
+            amt = work.iloc[:, i].apply(clean_money_val).sum()
+            if abs(amt) > 0.02:
+                key = str(col).strip()
+                totals[key] = totals.get(key, 0.0) + amt
+
+    return pd.DataFrame(
+        [{"ADP Column": k,
+          "Total $ (not compared)": round(v, 2),
+          "Note": "Column carries money but appears in no mapping file - review whether it needs a mapping row."}
+         for k, v in totals.items()]
+    )
+
+
+def run_comparison(adp_files, uzio_file, mappings, incomplete_mappings=None):
     """Main logic to compare totals based on mappings."""
     try:
         df_uzio, uzio_top, uzio_sheet = find_header_and_data(uzio_file)
@@ -535,7 +598,7 @@ def run_comparison(adp_files, uzio_file, mappings):
             df_adp, adp_top, adp_sheet = find_header_and_data(adp_file)
             adp_data_list.append((df_adp, adp_top, adp_sheet))
     except Exception as e:
-        return None, f"Error reading payroll files: {e}", None, None, None
+        return None, f"Error reading payroll files: {e}", None, None, None, None
 
     results = []
     employee_mismatches = []
@@ -619,8 +682,74 @@ def run_comparison(adp_files, uzio_file, mappings):
                                 "Multiple ADP Entries on Same Date": multiple_entries
                             })
 
+    # ── Tier 1: incomplete mapping rows (source name filled, UZIO side blank).
+    # The setup helper emits one mapping row per source column, so a half-filled
+    # row is an explicit "this is real but unfinished" signal. Any money found
+    # under it becomes a normal mismatch marked (MAPPING INCOMPLETE) — never
+    # silently skipped. Zero-money incomplete rows are left alone.
+    seen_incomplete = set()
+    for inc in (incomplete_mappings or []):
+        inc_key = (inc["Category"], norm_colname(inc["ADP_Name"]).lower())
+        if inc_key in seen_incomplete:
+            continue
+        seen_incomplete.add(inc_key)
+
+        adp_total = 0.0
+        adp_cols = []
+        adp_emp_detail = {}
+        adp_emp_counts = {}
+        for df_a, adp_t, _ in adp_data_list:
+            tot, cols, emp_m, emp_c = calculate_totals(df_a, adp_t, [inc["ADP_Name"]])
+            adp_total += tot
+            for c in cols:
+                if c not in adp_cols:
+                    adp_cols.append(c)
+            for (eid, p_date), v in emp_m.items():
+                if eid not in adp_emp_detail: adp_emp_detail[eid] = {}
+                adp_emp_detail[eid][p_date] = adp_emp_detail[eid].get(p_date, 0.0) + v
+            for (eid, p_date), c_val in emp_c.items():
+                if eid not in adp_emp_counts: adp_emp_counts[eid] = {}
+                adp_emp_counts[eid][p_date] = adp_emp_counts[eid].get(p_date, 0) + c_val
+
+        if abs(adp_total) <= 0.02:
+            continue
+
+        label = f'{inc["ADP_Name"]} (MAPPING INCOMPLETE)'
+        results.append({
+            "Category": inc["Category"],
+            "UZIO Item": label,
+            "ADP Total": round(adp_total, 2),
+            "UZIO Total": 0.0,
+            "Difference": round(-adp_total, 2),
+            "Status": "Mismatch",
+            "ADP Columns Found": ", ".join(adp_cols) if adp_cols else "None",
+            "UZIO Columns Found": "None (mapping row has no UZIO name)",
+        })
+        for eid, dates in adp_emp_detail.items():
+            if eid == "Unknown":
+                continue
+            for p_date, v in dates.items():
+                if abs(v) > 0.02:
+                    multiple_entries = "Yes" if adp_emp_counts.get(eid, {}).get(p_date, 0) > 1 else "No"
+                    employee_mismatches.append({
+                        "Associate ID": eid,
+                        "Pay Date": p_date,
+                        "Category": inc["Category"],
+                        "UZIO Item": label,
+                        "ADP Amount": round(v, 2),
+                        "UZIO Amount": 0.0,
+                        "Difference": round(-v, 2),
+                        "Multiple ADP Entries on Same Date": multiple_entries,
+                    })
+
     df_results = pd.DataFrame(results)
     df_emp_mismatches = pd.DataFrame(employee_mismatches)
+
+    # ── Tier 2: moneyed ADP columns absent from the mapping files entirely.
+    # Informational only — never mismatch rows. Positive pattern match (taxes /
+    # earnings / deductions shapes) with structural columns excluded, so wage
+    # bases (TAXABLE), totals, hours, memos etc. are never reported.
+    df_unmapped = find_unmapped_money_columns(adp_data_list, mappings, incomplete_mappings)
 
     # Three additional analyses on the loaded data
     df_dups        = detect_duplicate_pay_periods(df_uzio)
@@ -643,6 +772,12 @@ def run_comparison(adp_files, uzio_file, mappings):
             df_emp_mismatches.to_excel(writer, sheet_name="Employee Mismatches", index=False)
             sheet_names.append("Employee Mismatches")
             dfs_to_format.append(df_emp_mismatches)
+
+        # Unmapped moneyed columns (informational review list, not mismatches)
+        if not df_unmapped.empty:
+            df_unmapped.to_excel(writer, sheet_name="Unmapped Columns", index=False)
+            sheet_names.append("Unmapped Columns")
+            dfs_to_format.append(df_unmapped)
 
         # Duplicate Pay Periods (UZIO file)
         if df_dups.empty:
@@ -700,7 +835,7 @@ def run_comparison(adp_files, uzio_file, mappings):
                 column_len = max(curr_df[col].astype(str).map(len).max(), len(col)) + 2
                 sheet.set_column(i, i, min(column_len, 50))
 
-    return df_results, out_buffer.getvalue(), df_dups, df_stub_counts, df_tax_rates
+    return df_results, out_buffer.getvalue(), df_dups, df_stub_counts, df_tax_rates, df_unmapped
 
 # ---------------------------------------------------------------------------
 # Auto-detect helper for bulk upload
@@ -916,6 +1051,10 @@ def render_ui():
         st.session_state.audit_stub_counts = None
     if "audit_tax_rates" not in st.session_state:
         st.session_state.audit_tax_rates = None
+    if "audit_unmapped" not in st.session_state:
+        st.session_state.audit_unmapped = None
+    if "audit_incomplete" not in st.session_state:
+        st.session_state.audit_incomplete = None
 
     all_ready = (
         adp_files and len(adp_files) > 0 and
@@ -926,22 +1065,31 @@ def render_ui():
         if st.button("Run Total Comparison", type="primary", use_container_width=True):
             with st.spinner("Processing files and calculating totals..."):
                 all_mappings = []
-                all_mappings.extend(load_mapping(earn_file, "Earnings",      "Source Earning Code Name",      "Uzio Earning Code Name"))
-                all_mappings.extend(load_mapping(ded_file,  "Deductions",    "Source Deduction Code Name",    "Uzio Deduction Code Name"))
-                all_mappings.extend(load_mapping(cont_file, "Contributions", "Source Contribution Code Name", "Uzio Contribution Code Name"))
-                all_mappings.extend(load_mapping(tax_file,  "Taxes",         "Source Tax Code Name",          "Uzio Tax Code Description"))
+                incomplete_rows = []
+                for _mfile, _mcat, _macol, _mucol in (
+                    (earn_file, "Earnings",      "Source Earning Code Name",      "Uzio Earning Code Name"),
+                    (ded_file,  "Deductions",    "Source Deduction Code Name",    "Uzio Deduction Code Name"),
+                    (cont_file, "Contributions", "Source Contribution Code Name", "Uzio Contribution Code Name"),
+                    (tax_file,  "Taxes",         "Source Tax Code Name",          "Uzio Tax Code Description"),
+                ):
+                    _maps, _inc = load_mapping(_mfile, _mcat, _macol, _mucol)
+                    all_mappings.extend(_maps)
+                    incomplete_rows.extend(_inc)
 
                 if not all_mappings:
                     st.error("No mappings could be loaded. Please check the mapping file column headers.")
                     return
 
-                res_df, report_data, dup_df, stub_df, tax_df = run_comparison(adp_files, uzio_file, all_mappings)
+                res_df, report_data, dup_df, stub_df, tax_df, unmapped_df = run_comparison(
+                    adp_files, uzio_file, all_mappings, incomplete_rows)
                 if res_df is not None:
                     st.session_state.audit_results     = res_df
                     st.session_state.audit_report      = report_data
                     st.session_state.audit_dups        = dup_df
                     st.session_state.audit_stub_counts = stub_df
                     st.session_state.audit_tax_rates   = tax_df
+                    st.session_state.audit_unmapped    = unmapped_df
+                    st.session_state.audit_incomplete  = incomplete_rows
                 else:
                     st.error(f"Failed to generate results. Error: {report_data}")
 
@@ -950,6 +1098,26 @@ def render_ui():
         report_data = st.session_state.audit_report
 
         st.success("Comparison completed!")
+
+        # Tier 1 banner — incomplete mapping rows (source filled, UZIO blank)
+        incomplete_rows = st.session_state.get("audit_incomplete") or []
+        if incomplete_rows:
+            inc_names = ", ".join(f'`{r["ADP_Name"]}`' for r in incomplete_rows)
+            flagged = results_df[results_df["UZIO Item"].astype(str).str.contains(
+                "MAPPING INCOMPLETE", regex=False)]
+            if len(flagged):
+                st.warning(
+                    f"**Incomplete mapping row(s) found:** {inc_names} — the source name is filled "
+                    f"but the UZIO side is blank. {len(flagged)} of them carry money in the ADP "
+                    f"file(s) and are flagged as mismatches marked **(MAPPING INCOMPLETE)** in the "
+                    f"comparison and Employee Mismatches. Complete these rows in the mapping file."
+                )
+            else:
+                st.info(
+                    f"**Incomplete mapping row(s) found:** {inc_names} — the UZIO side is blank, "
+                    f"but no money hit these columns in the ADP file(s), so nothing was flagged. "
+                    f"Complete the rows anyway so future amounts can't slip through."
+                )
 
         matches    = len(results_df[results_df["Status"] == "Match"])
         mismatches = len(results_df[results_df["Status"] == "Mismatch"])
@@ -1018,6 +1186,17 @@ def render_ui():
                     tax_df.style.map(color_tax, subset=["Status"]),
                     use_container_width=True,
                 )
+
+        # Tier 2 — moneyed ADP columns absent from every mapping file (info only)
+        unmapped_df = st.session_state.audit_unmapped
+        if unmapped_df is not None and not unmapped_df.empty:
+            st.info(
+                f"**{len(unmapped_df)} ADP column(s) carry money but appear in no mapping file** — "
+                "they were NOT compared (this is a review list, not a mismatch). "
+                "See the **'Unmapped Columns'** tab in the report."
+            )
+            with st.expander(f"View unmapped moneyed columns ({len(unmapped_df)})", expanded=False):
+                st.dataframe(unmapped_df, use_container_width=True)
 
         st.download_button(
             label="Download Full Comparison Report",
