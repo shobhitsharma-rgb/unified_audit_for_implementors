@@ -135,6 +135,19 @@ def find_header_and_data(file):
                     
     return df, header_top, target_sheet
 
+def _norm_keep_parens(c):
+    """Like norm_colname but KEEPS parenthesized parts. The sanity tool emits
+    per-jurisdiction columns ('LIVED-IN STATE (IL) - EMPLOYEE TAX') where the
+    parens carry the identity — the legacy norm strips them, making (IL) and
+    (WI) collide into one key. Exact-with-parens matching runs FIRST; the
+    paren-stripping norm stays as the fallback for census-style suffixes."""
+    if c is None:
+        return ""
+    s = str(c).replace("\n", " ").replace("\r", " ").replace(" ", " ")
+    s = re.sub(r"\s+", " ", s).strip().replace("*", "")
+    return s.lower()
+
+
 def calculate_totals(df, header_top, column_names):
     """Sum up values for columns that match any of the provided names, handling multi-row headers."""
     found_cols = []
@@ -161,21 +174,32 @@ def calculate_totals(df, header_top, column_names):
         df_clean = df[~mask].copy()
     
     norm_cols_main = {norm_colname(c).lower(): i for i, c in enumerate(df.columns)}
+    exact_cols_main = {_norm_keep_parens(c): i for i, c in enumerate(df.columns)}
     norm_cols_top = {}
+    exact_cols_top = {}
     if header_top:
         for i, c in enumerate(header_top):
             if pd.notna(c) and str(c).strip() != "":
                 norm_cols_top[norm_colname(c).lower()] = i
+                exact_cols_top[_norm_keep_parens(c)] = i
 
     cols_to_sum = []
     for name in column_names:
+        e_name = _norm_keep_parens(name)
         n_name = norm_colname(name).lower()
-        if n_name in norm_cols_main:
+        # Exact (parens-preserving) match wins — 'LIVED-IN STATE (IL)' must
+        # never resolve to the (WI) column; the paren-stripping norm is only
+        # the fallback for census-style '(Personal Profile)' suffixes.
+        if e_name in exact_cols_main:
+            idx = exact_cols_main[e_name]
+            cols_to_sum.append(df.columns[idx])
+            found_cols.append(df.columns[idx])
+        elif n_name in norm_cols_main:
             idx = norm_cols_main[n_name]
             cols_to_sum.append(df.columns[idx])
             found_cols.append(df.columns[idx])
-        elif n_name in norm_cols_top:
-            start_idx = norm_cols_top[n_name]
+        elif e_name in exact_cols_top or n_name in norm_cols_top:
+            start_idx = exact_cols_top.get(e_name, norm_cols_top.get(n_name))
             end_idx = len(df.columns)
             if header_top:
                 for k in range(start_idx + 1, len(header_top)):

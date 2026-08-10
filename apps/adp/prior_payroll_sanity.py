@@ -289,18 +289,36 @@ def split_lived_in_column(df, base_col, lookup):
     created = []
     if moves:
         codes = sorted({code for _, code, _ in moves})
+        # Build whole columns and assign them in one go. Cell-by-cell .at
+        # writes crash on modern pandas (Arrow-backed string columns raise
+        # TypeError when a float lands in a column created from "" — exactly
+        # what happens on Streamlit Cloud; older local pandas silently allowed
+        # it). Whole-column assignment with object dtype is version-proof.
+        row_pos = {idx: i for i, idx in enumerate(df.index)}
+        new_base = df[base_col].tolist()
+        col_vals = {code: [""] * len(df) for code in codes}
+        for idx, code, v in moves:
+            i = row_pos[idx]
+            col_vals[code][i] = v
+            new_base[i] = ""
+
         pos = df.columns.get_loc(base_col) + 1
         for code in codes:
             new_col = _jurisdiction_col_name(base_col, code)
             if new_col not in df.columns:
-                df.insert(pos, new_col, "")
+                df.insert(pos, new_col,
+                          pd.Series(col_vals[code], index=df.index, dtype="object"))
                 created.append(new_col)
                 pos += 1
             else:
+                merged = [
+                    col_vals[code][i] if str(col_vals[code][i]).strip() != ""
+                    else existing
+                    for i, existing in enumerate(df[new_col].tolist())
+                ]
+                df[new_col] = pd.Series(merged, index=df.index, dtype="object")
                 pos = df.columns.get_loc(new_col) + 1
-        for idx, code, v in moves:
-            df.at[idx, _jurisdiction_col_name(base_col, code)] = v
-            df.at[idx, base_col] = ""
+        df[base_col] = pd.Series(new_base, index=df.index, dtype="object")
 
     dropped_base = False
     if not df[base_col].map(_is_movable_value).any():
@@ -1028,8 +1046,11 @@ def split_memo_column(df, memo_col, k_cols, roth_cols):
             if eid_col is not None:
                 no_deferral.append(str(df.at[idx, eid_col]).strip())
 
-    df[memo_col] = kept_vals
-    df.insert(df.columns.get_loc(memo_col) + 1, new_col, roth_vals)
+    # Whole-column object-dtype assignment — safe on Arrow-backed pandas
+    # (mixed ""/float lists must never land in a string-typed column).
+    df[memo_col] = pd.Series(kept_vals, index=df.index, dtype="object")
+    df.insert(df.columns.get_loc(memo_col) + 1, new_col,
+              pd.Series(roth_vals, index=df.index, dtype="object"))
     return df, {"new_col": new_col, "rows_split": rows_split,
                 "counts": counts, "no_deferral": no_deferral}
 
