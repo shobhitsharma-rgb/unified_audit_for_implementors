@@ -259,6 +259,7 @@ When you click **Download Corrected Source**, the following corrections are appl
     zip_fixes = validation.get('zip_fixes', pd.DataFrame())
     status_fixes = validation.get('status_fixes', pd.DataFrame())
     manager_hourly_flags = validation.get('manager_hourly_flags', pd.DataFrame())
+    gender_invalid = validation.get('gender_invalid', pd.DataFrame())
 
     # --- VALIDATION RESULTS (plain-English, two-section layout) ---
     render_validation_results(
@@ -274,6 +275,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         zip_fixes=zip_fixes,
         status_fixes=status_fixes,
         manager_hourly_flags=manager_hourly_flags,
+        gender_invalid=gender_invalid,
     )
 
     # --- Persistent Download Section ---
@@ -619,6 +621,11 @@ When you click **Download Corrected Source**, the following corrections are appl
     # --- Job Title Mapping Section ---
     from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
     render_job_title_mapping(df_paycom, "paycom", resolved_field_map, key_prefix="pc_sanity")
+
+    # --- Push to Uzio (Production) Section ---
+    from utils.onboarding_api_client import render_push_to_uzio_section
+    render_push_to_uzio_section(vendor="PAYCOM", data_key="pc_sanity_cached_files",
+                                 jt_key_prefix="pc_sanity", key_prefix="pc_push2uzio")
 
 def render_census_generator():
     st.title("Paycom - Census Generator")
