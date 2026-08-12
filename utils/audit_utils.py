@@ -540,6 +540,7 @@ def validate_source_data(df_source, resolved_field_map):
     zip_fixes = []
     status_fixes = []
     manager_hourly_flags = []
+    gender_invalid = []
 
     # Get column names 
     # Hourly Exempt / Salaried Non-Exempt flags
@@ -564,7 +565,8 @@ def validate_source_data(df_source, resolved_field_map):
     first_name_col = resolved_field_map.get('First Name')
     last_name_col = resolved_field_map.get('Last Name')
     ssn_col = resolved_field_map.get('SSN')
-    
+    gender_col = resolved_field_map.get('Gender')
+
     # --- PRE-SCAN for DUPLICATE SSNs ---
     duplicate_ssns = set()
     if ssn_col and ssn_col in df_source.columns and emp_id_col and emp_id_col in df_source.columns:
@@ -971,6 +973,20 @@ def validate_source_data(df_source, resolved_field_map):
                             'Personal Email Used': str(pe_val).strip()
                         })
         
+        # 8b. Gender value not in Uzio's accepted list (flag only — never
+        # auto-corrected; per the User's decision this is surfaced as an amber
+        # "please review" item, not a fix). Uzio accepts Male / Female / M / F /
+        # Intersex (case-insensitive) and treats anything else as null.
+        if gender_col and gender_col in df_source.columns:
+            gender_raw = row.get(gender_col)
+            gender_val = str(gender_raw).strip() if pd.notna(gender_raw) else ""
+            if gender_val and gender_val.lower() not in ("male", "female", "m", "f", "intersex"):
+                gender_invalid.append({
+                    'Employee ID': emp_ref,
+                    'Name': get_emp_name(row),
+                    'Gender Value': gender_val
+                })
+
         # 9. Intern in Worker Category → auto-correct to Part Time
         if type_col and type_col in df_source.columns:
             type_val = row.get(type_col)
@@ -1060,6 +1076,7 @@ def validate_source_data(df_source, resolved_field_map):
         'zip_fixes': pd.DataFrame(zip_fixes),
         'status_fixes': pd.DataFrame(status_fixes),
         'manager_hourly_flags': pd.DataFrame(manager_hourly_flags),
+        'gender_invalid': pd.DataFrame(gender_invalid),
         'error_summary': error_summary
     }
 
