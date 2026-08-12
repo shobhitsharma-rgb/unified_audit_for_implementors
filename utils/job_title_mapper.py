@@ -136,11 +136,15 @@ def render_streamlit_section(df, vendor: str, resolved_field_map=None, key_prefi
     # Download Button
     stamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M')
     csv_bytes = edited_df.to_csv(index=False).encode("utf-8")
-    
+    filename = f"{vendor}_Job_Title_Mapping_{stamp}.csv"
+
+    # Stash for the "Push to Uzio" section (same file, no re-upload needed there).
+    st.session_state[f"{key_prefix}_job_title_mapping"] = {"csv": csv_bytes, "filename": filename}
+
     st.download_button(
         label="📥 Download Job Title Mapping (CSV)",
         data=csv_bytes,
-        file_name=f"{vendor}_Job_Title_Mapping_{stamp}.csv",
+        file_name=filename,
         mime="text/csv",
         key=f"{key_prefix}_dl_btn",
         help="Download the mapping file with 'DSP Job Title' and 'Amazon Job Title' columns."
