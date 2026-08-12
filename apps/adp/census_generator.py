@@ -637,6 +637,11 @@ When you click **Download Corrected Source**, the following corrections are appl
     from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
     render_job_title_mapping(df_adp, "adp", resolved_field_map, key_prefix="adp_sanity")
 
+    # --- Push to Uzio (Production) Section ---
+    from utils.onboarding_api_client import render_push_to_uzio_section
+    render_push_to_uzio_section(vendor="ADP", data_key="adp_sanity_cached_files",
+                                 jt_key_prefix="adp_sanity", key_prefix="adp_push2uzio")
+
 def render_census_generator():
     st.title("ADP - Full Census Generation")
     

@@ -620,6 +620,11 @@ When you click **Download Corrected Source**, the following corrections are appl
     from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
     render_job_title_mapping(df_paycom, "paycom", resolved_field_map, key_prefix="pc_sanity")
 
+    # --- Push to Uzio (Production) Section ---
+    from utils.onboarding_api_client import render_push_to_uzio_section
+    render_push_to_uzio_section(vendor="PAYCOM", data_key="pc_sanity_cached_files",
+                                 jt_key_prefix="pc_sanity", key_prefix="pc_push2uzio")
+
 def render_census_generator():
     st.title("Paycom - Census Generator")
     st.markdown("""
