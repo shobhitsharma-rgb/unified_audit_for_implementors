@@ -110,29 +110,47 @@ def find_header_and_data(file):
     # --- GRAND TOTAL ROW DETECTION ---
     # Sometimes ADP exports include a grand total at the very bottom but fail to clear
     # the last employee's ID from that row, messing up totals for that employee.
-    if len(df) > 1:
+    # Four signals, ALL required (the old any-shared-column + single-column-within-5%
+    # heuristic false-positived on small per-pay-period files and silently deleted a
+    # real employee row):
+    #   1. >= 3 data rows (a "sum of preceding" over a single row is meaningless)
+    #   2. identity leak: last row's employee ID EQUALS the previous row's ID
+    #      (the actual ADP totals-row signature; blank/'Total' IDs are filtered
+    #      separately in calculate_totals)
+    #   3. at least THREE money columns equal the sum of all preceding rows
+    #      (GROSS PAY / TOTAL EARNINGS mirror each other, so two is still one signal)
+    #   4. tolerance 0.5% (real totals are exact sums +- cent rounding), with at
+    #      least one matched column > $100
+    if len(df) >= 3:
         last_row = df.iloc[-1]
         prev_row = df.iloc[-2]
-        
-        shared_cols = 0
-        for c in df.columns[:5]:
-            v_last = str(last_row[c]).strip()
-            v_prev = str(prev_row[c]).strip()
-            if v_last and v_last == v_prev and v_last.lower() != 'nan':
-                shared_cols += 1
-                
-        if shared_cols >= 1:
+
+        gid_col = next((c for c in df.columns if any(
+            x in str(c).lower() for x in ["associate id", "employee id", "file #"])), None)
+        id_leaked = False
+        if gid_col is not None:
+            v_last = str(last_row[gid_col]).strip()
+            v_prev = str(prev_row[gid_col]).strip()
+            id_leaked = bool(v_last) and v_last.lower() != "nan" and v_last == v_prev
+
+        if id_leaked:
+            matched_cols = 0
+            matched_big = False
             for c in df.columns:
                 try:
                     val_last = clean_money_val(last_row[c])
-                    if val_last > 100:
-                        sum_rest = sum(clean_money_val(x) for x in df[c].iloc[:-1])
-                        if sum_rest > 0 and abs(val_last - sum_rest) < sum_rest * 0.05:
-                            df = df.iloc[:-1]
-                            break
+                    if val_last <= 0:
+                        continue
+                    sum_rest = sum(clean_money_val(x) for x in df[c].iloc[:-1])
+                    if sum_rest > 0 and abs(val_last - sum_rest) <= max(sum_rest * 0.005, 0.02):
+                        matched_cols += 1
+                        if val_last > 100:
+                            matched_big = True
                 except:
                     continue
-                    
+            if matched_cols >= 3 and matched_big:
+                df = df.iloc[:-1]
+
     return df, header_top, target_sheet
 
 def _norm_keep_parens(c):
