@@ -566,6 +566,9 @@ def validate_source_data(df_source, resolved_field_map):
     last_name_col = resolved_field_map.get('Last Name')
     ssn_col = resolved_field_map.get('SSN')
     gender_col = resolved_field_map.get('Gender')
+    dob_col = resolved_field_map.get('DOB')
+    city_col = resolved_field_map.get('City')
+    address1_col = resolved_field_map.get('Address Line 1')
 
     # --- PRE-SCAN for DUPLICATE SSNs ---
     duplicate_ssns = set()
@@ -605,7 +608,22 @@ def validate_source_data(df_source, resolved_field_map):
         
         # --- HARD STOP CHECKS ---
         missing = []
-        
+
+        # 0. Blank mandatory identity / date / address fields. None of these
+        # are auto-fillable, so they're flagged only. Found via production
+        # onboarding-API error-log analysis (PHIX-72859) -- Uzio hard-rejects
+        # a row when any of these is empty.
+        for _std_name, _col in (
+            ("Employee ID", emp_id_col), ("First Name", first_name_col),
+            ("Last Name", last_name_col), ("Date of Birth", dob_col),
+            ("Date of Hire", hire_date_col), ("City", city_col),
+            ("Address Line 1", address1_col), ("State", state_col),
+        ):
+            if _col and _col in df_source.columns:
+                _v = row.get(_col)
+                if pd.isna(_v) or str(_v).strip() == "":
+                    missing.append(f"{_std_name} (blank)")
+
         if ssn_col and ssn_col in df_source.columns:
             ssn_val_raw = row.get(ssn_col)
             ssn_val = str(ssn_val_raw).strip() if pd.notna(ssn_val_raw) else ""
@@ -746,7 +764,11 @@ def validate_source_data(df_source, resolved_field_map):
         is_flsa_blank = False
         if flsa_col and flsa_col in df_source.columns:
             flsa_val = row.get(flsa_col)
-            if pd.isna(flsa_val) or str(flsa_val).strip() == "":
+            flsa_val_str = str(flsa_val).strip() if pd.notna(flsa_val) else ""
+            # Source data sometimes has the literal text "null" instead of a
+            # true blank -- Uzio's API rejects it the same way it rejects a
+            # blank, so treat it as blank here too (PHIX-72859 evidence).
+            if not flsa_val_str or flsa_val_str.lower() == "null":
                 is_flsa_blank = True
 
         if is_flsa_blank:
@@ -904,6 +926,25 @@ def validate_source_data(df_source, resolved_field_map):
                 if not re.match(r"^[A-Za-z0-9\s\-\']+$", val):
                     missing.append(f"Special characters in {ec} ('{val}')")
 
+        # 8. Blank Work Email → fill with Personal Email; if BOTH are blank,
+        # it's a hard stop -- Uzio's onboarding API rejects a row with no
+        # email at all (PHIX-72859 evidence: "Official Email" was the single
+        # biggest missing-field error after Zipcode). Must run BEFORE the
+        # `if missing:` cutoff below so a both-blank row actually lands in
+        # hard_errors instead of being silently dropped.
+        if work_email_col and work_email_col in df_source.columns:
+            we_val = row.get(work_email_col)
+            if pd.isna(we_val) or str(we_val).strip() == "":
+                pe_val = row.get(personal_email_col) if personal_email_col and personal_email_col in df_source.columns else None
+                if pd.notna(pe_val) and str(pe_val).strip():
+                    email_fallbacks.append({
+                        'Employee ID': emp_ref,
+                        'Name': get_emp_name(row),
+                        'Personal Email Used': str(pe_val).strip()
+                    })
+                else:
+                    missing.append("Official Email (blank — no Work or Personal Email)")
+
         if missing:
             hard_errors.append({
                 'Employee ID': emp_ref,
@@ -959,19 +1000,6 @@ def validate_source_data(df_source, resolved_field_map):
                         'Pay Type': str(row.get(pay_type_col, '')).strip(),
                         'FLSA Classification': '(blank)'
                     })
-        
-        # 8. Blank Work Email → fill with Personal Email
-        if work_email_col and work_email_col in df_source.columns:
-            we_val = row.get(work_email_col)
-            if pd.isna(we_val) or str(we_val).strip() == "":
-                if personal_email_col and personal_email_col in df_source.columns:
-                    pe_val = row.get(personal_email_col)
-                    if pd.notna(pe_val) and str(pe_val).strip():
-                        email_fallbacks.append({
-                            'Employee ID': emp_ref,
-                            'Name': get_emp_name(row),
-                            'Personal Email Used': str(pe_val).strip()
-                        })
         
         # 8b. Gender value not in Uzio's accepted list (flag only — never
         # auto-corrected; per the User's decision this is surfaced as an amber
@@ -1399,7 +1427,10 @@ def generate_uzio_template(df_source, vendor_field_map, fix_options=None):
         # source FLSA value. Driver rule (above) already covered its rows.
         if fix_options and fix_options.get('fix_flsa', False):
             if 'FLSA Classification' in df_uzio.columns:
-                blank_flsa_mask = df_uzio['FLSA Classification'].isna() | (df_uzio['FLSA Classification'].astype(str).str.strip() == "") | (df_uzio['FLSA Classification'].astype(str).str.strip().str.lower() == "nan")
+                # "null" is source-data garbage equivalent to blank (Uzio's API
+                # rejects it the same way) -- treat it as blank here too so the
+                # download actually matches what the sanity screen promises.
+                blank_flsa_mask = df_uzio['FLSA Classification'].isna() | df_uzio['FLSA Classification'].astype(str).str.strip().str.lower().isin(["", "nan", "null"])
 
                 # Rule 3: blank FLSA + Hourly + not Driver → Non-Exempt
                 hourly_fill_mask = blank_flsa_mask & hourly_mask & ~driver_mask

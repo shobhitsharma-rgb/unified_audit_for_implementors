@@ -245,6 +245,24 @@ def _plain_english_issue(raw_issue):
         return "Same Social Security Number is used by more than one employee"
     if "SSN (blank)" in p:
         return "Missing Social Security Number"
+    if "Employee ID (blank)" in p:
+        return "Missing employee ID"
+    if "First Name (blank)" in p:
+        return "Missing first name"
+    if "Last Name (blank)" in p:
+        return "Missing last name"
+    if "Date of Birth (blank)" in p:
+        return "Missing date of birth"
+    if "Date of Hire (blank)" in p:
+        return "Missing hire date"
+    if "City (blank)" in p:
+        return "Missing city"
+    if "Address Line 1 (blank)" in p:
+        return "Missing street address"
+    if "Official Email (blank" in p:
+        return "Missing email — both work email and personal email are blank"
+    if "State (blank)" in p:
+        return "Missing state"
     if "Employment Status (blank)" in p:
         return "Missing employment status (should be Active or Terminated)"
     if "Non-standard Status" in p:
