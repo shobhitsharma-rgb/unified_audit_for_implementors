@@ -657,53 +657,60 @@ def apply_net_take_swap(df):
 def detect_grand_total_row(df):
     """Detect the bottom-of-file grand total where the last employee's ID leaked.
 
-    Pattern (carried over from the audit tool):
-      - last row's first few columns share values with the previous row
-        (the leak), AND
-      - some money column on the last row equals the sum of all preceding
-        rows for that column (within 5%).
+    Four signals, ALL required (kept in sync with total_comparison.py — the old
+    any-shared-column + single-column-within-5% heuristic false-positived on
+    small per-pay-period files and silently deleted a real employee row):
+      1. >= 3 data rows (a "sum of preceding" over a single row is meaningless)
+      2. identity leak: last row's employee ID EQUALS the previous row's ID
+         (the actual ADP totals-row signature)
+      3. at least THREE money columns equal the sum of all preceding rows
+         (GROSS PAY / TOTAL EARNINGS mirror each other, so two is one signal)
+      4. tolerance 0.5% (real totals are exact sums +- cent rounding), with at
+         least one matched column > $100
 
     Returns (cleaned_df, info_dict_or_None).
     """
-    if len(df) < 2:
+    if len(df) < 3:
         return df, None
 
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2]
 
-    shared = 0
-    for c in df.columns[:5]:
-        v_l = str(last_row[c]).strip()
-        v_p = str(prev_row[c]).strip()
-        if v_l and v_l == v_p and v_l.lower() != "nan":
-            shared += 1
-    if shared < 1:
+    eid_col = _find_col(df, ["Associate ID", "Employee ID", "File #"])
+    if not eid_col:
+        return df, None
+    v_l = str(last_row[eid_col]).strip()
+    v_p = str(prev_row[eid_col]).strip()
+    if not v_l or v_l.lower() == "nan" or v_l != v_p:
         return df, None
 
+    matched = []   # (col, val_last, sum_rest)
     for c in df.columns:
         try:
             val_last = clean_money_val(last_row[c])
-            if val_last <= 100:
+            if val_last <= 0:
                 continue
             sum_rest = sum(clean_money_val(x) for x in df[c].iloc[:-1])
-            if sum_rest > 0 and abs(val_last - sum_rest) < sum_rest * 0.05:
-                eid_col = _find_col(df, ["Associate ID", "Employee ID", "File #"])
-                first_col = _find_col(df, ["First Name"])
-                last_col = _find_col(df, ["Last Name"])
-                preview_eid = str(last_row[eid_col]) if eid_col else ""
-                fn = str(last_row[first_col]).strip() if first_col and pd.notna(last_row[first_col]) else ""
-                ln = str(last_row[last_col]).strip() if last_col and pd.notna(last_row[last_col]) else ""
-                return df.iloc[:-1].copy(), {
-                    "removed_employee_id": preview_eid,
-                    "removed_employee_name": (fn + " " + ln).strip(),
-                    "matched_on_column": str(c),
-                    "matched_value": round(val_last, 2),
-                    "expected_sum": round(sum_rest, 2),
-                }
+            if sum_rest > 0 and abs(val_last - sum_rest) <= max(sum_rest * 0.005, 0.02):
+                matched.append((c, val_last, sum_rest))
         except Exception:
             continue
 
-    return df, None
+    if len(matched) < 3 or not any(v > 100 for _, v, _ in matched):
+        return df, None
+
+    best = max(matched, key=lambda m: m[1])
+    first_col = _find_col(df, ["First Name"])
+    last_col = _find_col(df, ["Last Name"])
+    fn = str(last_row[first_col]).strip() if first_col and pd.notna(last_row[first_col]) else ""
+    ln = str(last_row[last_col]).strip() if last_col and pd.notna(last_row[last_col]) else ""
+    return df.iloc[:-1].copy(), {
+        "removed_employee_id": v_l,
+        "removed_employee_name": (fn + " " + ln).strip(),
+        "matched_on_column": str(best[0]),
+        "matched_value": round(best[1], 2),
+        "expected_sum": round(best[2], 2),
+    }
 
 
 def _smart_merge_value(values):

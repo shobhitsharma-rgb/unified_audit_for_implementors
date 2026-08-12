@@ -1735,12 +1735,63 @@ def classify_deductions_pretax(
 
 
 # ---------- bonus classifier (FLSA) ----------
+#
+# Per-paycheck dual-prediction test. For each testable row we compute BOTH
+# possible OT amounts and see which one ADP actually paid:
+#   Regular Rate   = REGULAR EARNINGS / REGULAR HOURS
+#   Worked Hours   = REGULAR + OVERTIME + DOUBLE OVERTIME + TRAINING hours
+#                    (PTO / Station Closure hours are paid-not-worked: excluded)
+#   discretionary prediction     = 1.5 x Regular Rate x OT hours
+#   Blended Rate   = (Regular Rate x Worked Hours + Bonus) / Worked Hours
+#   non-disc OT rate = Blended / 2 + Regular Rate
+#   non-disc prediction          = non-disc OT rate x OT hours
+# The row's verdict is whichever prediction the actual OVERTIME EARNINGS
+# matches (<=1% off). Both far, or predictions indistinguishable (tiny
+# bonus) -> row is 'unclear' and doesn't count as evidence.
+#
+# Every bonus column gets its OWN verdict, two ways:
+#   individual  - rows where ONLY that bonus is present (clean evidence)
+#   combined    - rows where the bonus appears at all, tested with the SUM
+#                 of all bonuses (matches how ADP computes the rate)
+# agree -> confirmed; disagree -> needs_review; one side indeterminate ->
+# the other side's verdict (noted). Any new column whose name contains
+# BONUS / a BN* code is picked up automatically.
+#
+# CONSOLIDATED FILES ARE REFUSED: on a 1-row-per-employee quarter file the
+# bonus may have been earned in a period with no overtime (and vice versa),
+# so any verdict would be meaningless — the tool says so instead of guessing.
+
+_BONUS_ROW_TOL = 0.01          # actual must be within 1% of a prediction
+_BONUS_MIN_GAP = 0.005         # predictions closer than 0.5% are indistinguishable
+
+
+def _bonus_verdict_from_rows(row_verdicts):
+    """FLSA aggregation: any positive proof of rate inflation is conclusive."""
+    tested = [v for v in row_verdicts if v in ("discretionary", "non_discretionary")]
+    if not tested:
+        return "indeterminate"
+    if any(v == "non_discretionary" for v in tested):
+        return "non_discretionary"
+    return "discretionary"
+
 
 def classify_bonus(df, earn_cols):
     reg_e = _find_col(df, ["REGULAR EARNINGS"])
     reg_h = _find_col(df, ["REGULAR HOURS"])
     ot_e = _find_col(df, ["OVERTIME EARNINGS"])
     ot_h = _find_col(df, ["OVERTIME HOURS"])
+    dot_h = _find_col(df, ["DOUBLE OVERTIME HOURS", "DOUBLE OT HOURS", "DBL OT HOURS"])
+
+    # Training hours count as worked; PTO / Station Closure do not.
+    extra_worked_h = []
+    for c in df.columns:
+        u = str(c).strip().upper()
+        if "HOURS" not in u or not u.startswith("ADDITIONAL HOURS"):
+            continue
+        if any(x in u for x in ("PTO", "PAID TIME", "STATION", "CLOSURE")):
+            continue
+        if "TRA" in u or "TRAINING" in u:
+            extra_worked_h.append(c)
 
     bonus_cols = []
     for c in earn_cols:
@@ -1751,73 +1802,178 @@ def classify_bonus(df, earn_cols):
                 continue
             bonus_cols.append(c)
 
-    if not bonus_cols or not (reg_e and reg_h and ot_e and ot_h):
+    def _empty(verdict, reason, consolidated=False, skipped=0):
         return {
-            "verdict": "indeterminate",
-            "reason": "Missing bonus / overtime columns to test",
+            "verdict": verdict, "reason": reason,
             "bonus_columns_found": [str(c) for c in bonus_cols],
             "rows_tested": 0, "discretionary_rows": 0, "non_discretionary_rows": 0,
-            "samples": [],
+            "unclear_rows": 0, "samples": [], "per_bonus": [],
+            "consolidated_file": consolidated, "aggregated_rows_skipped": skipped,
         }
 
-    rows_tested = 0; discretionary_rows = 0; non_disc_rows = 0
-    samples = []
-    rate_tol_pct = 0.005
+    if not bonus_cols or not (reg_e and reg_h and ot_e and ot_h):
+        return _empty("indeterminate", "Missing bonus / overtime columns to test")
 
-    for _, r in df.iterrows():
-        bonus_amt = sum(_num(r.get(c)) for c in bonus_cols)
+    # ── ROW-level aggregated-row guard ──────────────────────────────────────
+    # A verdict may only come from a genuine single-pay-period row. Uploads can
+    # MIX consolidated and per-pay-period files (they get concatenated), so a
+    # file-level check is not enough: each row's own PERIOD span decides.
+    # Span > 35 days => aggregated (quarter/consolidated) row => never evidence.
+    pbeg = _find_col(df, ["PERIOD BEGINNING DATE"])
+    pend = _find_col(df, ["PERIOD ENDING DATE"])
+    agg_mask = None
+    if pbeg and pend:
+        _b = pd.to_datetime(df[pbeg], errors="coerce")
+        _e = pd.to_datetime(df[pend], errors="coerce")
+        _span = (_e - _b).dt.days
+        agg_mask = _span.gt(35).fillna(False)
+    aggregated_skipped = int(agg_mask.sum()) if agg_mask is not None else 0
+
+    def _is_aggregated(idx):
+        return agg_mask is not None and bool(agg_mask.loc[idx])
+
+    def _row_test(r, bonus_amt):
+        """('discretionary'|'non_discretionary'|'unclear'|None, details).
+        None = row not testable with this bonus amount."""
         re_v = _num(r.get(reg_e)); rh_v = _num(r.get(reg_h))
         oe_v = _num(r.get(ot_e)); oh_v = _num(r.get(ot_h))
-        if bonus_amt <= 0 or oh_v <= 0 or rh_v <= 0 or re_v <= 0:
-            continue
-        rows_tested += 1
+        if bonus_amt <= 0 or oh_v <= 0 or rh_v <= 0 or re_v <= 0 or oe_v <= 0:
+            return None, None
+        worked = rh_v + oh_v + (_num(r.get(dot_h)) if dot_h else 0.0) \
+            + sum(_num(r.get(c)) for c in extra_worked_h)
+        if worked <= 0:
+            return None, None
         regular_rate = re_v / rh_v
-        expected_ot_rate = 1.5 * regular_rate
-        actual_ot_rate = oe_v / oh_v
-        diff_pct = (actual_ot_rate - expected_ot_rate) / expected_ot_rate
+        disc_pred = 1.5 * regular_rate * oh_v
+        blended = regular_rate + bonus_amt / worked
+        nd_pred = (blended / 2 + regular_rate) * oh_v
+        if disc_pred <= 0:
+            return None, None
+        d_disc = abs(oe_v - disc_pred) / disc_pred
+        d_nd = abs(oe_v - nd_pred) / nd_pred if nd_pred > 0 else 1.0
+        details = {
+            "regular_rate": round(regular_rate, 4), "worked_hours": round(worked, 2),
+            "blended_rate": round(blended, 4),
+            "predicted_ot_discretionary": round(disc_pred, 2),
+            "predicted_ot_non_disc": round(nd_pred, 2),
+            "actual_ot": round(oe_v, 2), "bonus_amt": round(bonus_amt, 2),
+        }
+        if abs(nd_pred - disc_pred) / disc_pred < _BONUS_MIN_GAP:
+            return "unclear", details        # predictions indistinguishable
+        if min(d_disc, d_nd) > _BONUS_ROW_TOL:
+            return "unclear", details        # actual matches neither
+        return ("discretionary" if d_disc <= d_nd else "non_discretionary"), details
 
-        verdict_row = "discretionary"
-        if diff_pct > rate_tol_pct:
-            verdict_row = "non_discretionary"; non_disc_rows += 1
-        else:
-            discretionary_rows += 1
-
+    # ── Combined pass (sum of all bonuses, every non-aggregated bonus row) ──
+    combined_verdicts = []
+    samples = []
+    unclear_rows = 0
+    for idx, r in df.iterrows():
+        if _is_aggregated(idx):
+            continue
+        total_bonus = sum(_num(r.get(c)) for c in bonus_cols)
+        v, det = _row_test(r, total_bonus)
+        if v is None:
+            continue
+        combined_verdicts.append(v)
+        if v == "unclear":
+            unclear_rows += 1
         if len(samples) < 5:
             eid = r.get("ASSOCIATE ID") or r.get("Associate ID")
-            samples.append({
-                "associate": str(eid) if eid is not None else "",
-                "regular_earnings": round(re_v, 2), "regular_hours": round(rh_v, 4),
-                "regular_rate": round(regular_rate, 4),
-                "expected_ot_rate_1.5x": round(expected_ot_rate, 4),
-                "actual_ot_rate": round(actual_ot_rate, 4),
-                "diff_pct": round(diff_pct * 100, 3),
-                "bonus_amt": round(bonus_amt, 2), "verdict_row": verdict_row,
-            })
+            parts = []
+            for c in bonus_cols:
+                amt = _num(r.get(c))
+                if amt > 0:
+                    parts.append(f"{_strip_prefix(c, EARN_PREFIXES)} = {amt:,.2f}")
+            samples.append({"associate": str(eid) if eid is not None else "",
+                            "verdict_row": v,
+                            "bonus_breakdown": "; ".join(parts), **det})
 
-    if rows_tested == 0:
-        verdict = "indeterminate"
-        reason = "No row had both bonus and overtime hours"
-    elif non_disc_rows > 0:
-        verdict = "non_discretionary"
-        reason = (
-            f"{non_disc_rows} of {rows_tested} rows show actual OT rate "
-            f"materially above 1.5 x regular rate => bonus inflated regular rate => "
-            f"non-discretionary (any positive proof is conclusive under FLSA)."
-        )
+    overall = _bonus_verdict_from_rows(combined_verdicts)
+    tested = sum(1 for v in combined_verdicts if v != "unclear")
+    n_nd = sum(1 for v in combined_verdicts if v == "non_discretionary")
+    n_d = sum(1 for v in combined_verdicts if v == "discretionary")
+
+    # ── Per-bonus pass: individual (solo rows) + combined (rows featuring it) ──
+    per_bonus = []
+    for bc in bonus_cols:
+        others = [c for c in bonus_cols if c != bc]
+        ind_verdicts, comb_verdicts = [], []
+        for idx, r in df.iterrows():
+            if _is_aggregated(idx):
+                continue
+            own = _num(r.get(bc))
+            if own <= 0:
+                continue
+            others_amt = sum(_num(r.get(c)) for c in others)
+            total = own + others_amt
+            if others_amt <= 0:
+                v, _d = _row_test(r, own)
+                if v is not None:
+                    ind_verdicts.append(v)
+            v2, _d2 = _row_test(r, total)
+            if v2 is not None:
+                comb_verdicts.append(v2)
+
+        ind = _bonus_verdict_from_rows(ind_verdicts)
+        comb = _bonus_verdict_from_rows(comb_verdicts)
+        if ind == comb:
+            final, note = ind, ("confirmed by both individual and combined tests"
+                                if ind != "indeterminate" else "no testable rows")
+        elif ind == "indeterminate":
+            final, note = comb, "combined evidence only (bonus never appears alone)"
+        elif comb == "indeterminate":
+            final, note = ind, "individual evidence only"
+        else:
+            final, note = "needs_review", (
+                f"individual test says {ind}, combined says {comb} — review manually")
+
+        code = _strip_prefix(bc, EARN_PREFIXES)
+        code = code.split("-", 1)[0].strip().upper() if "-" in code else code.strip().upper()
+        per_bonus.append({
+            "column": str(bc), "code": code,
+            "individual_verdict": ind,
+            "individual_rows": sum(1 for v in ind_verdicts if v != "unclear"),
+            "combined_verdict": comb,
+            "combined_rows": sum(1 for v in comb_verdicts if v != "unclear"),
+            "final_verdict": final, "note": note,
+        })
+
+    skipped_note = (f" ({aggregated_skipped} aggregated/consolidated row(s) with a "
+                    f">35-day period span were excluded from evidence.)"
+                    if aggregated_skipped else "")
+    all_aggregated = tested == 0 and aggregated_skipped > 0
+
+    if all_aggregated:
+        reason = (f"All rows look CONSOLIDATED (period span > 35 days, "
+                  f"{aggregated_skipped} row(s) skipped). The bonus may sit in a "
+                  f"pay period with no overtime (and vice versa), so aggregate math "
+                  f"would be wrong. Upload the per-pay-period file for bonus "
+                  f"classification.")
+    elif tested == 0:
+        reason = ("No single-pay-period row had bonus + overtime together "
+                  "(or all rows were unclear)." + skipped_note)
+    elif overall == "non_discretionary":
+        reason = (f"{n_nd} of {tested} testable single-pay-period rows match the "
+                  f"blended-rate (non-discretionary) OT prediction — any positive "
+                  f"proof is conclusive under FLSA. See per-bonus verdicts."
+                  + skipped_note)
     else:
-        verdict = "discretionary"
-        reason = (
-            f"All {rows_tested} rows show actual OT rate ~ 1.5 x regular rate => "
-            f"bonus did not inflate the regular rate basis => discretionary."
-        )
+        reason = (f"All {tested} testable single-pay-period rows match the plain "
+                  f"1.5x (discretionary) OT prediction. See per-bonus verdicts."
+                  + skipped_note)
 
     return {
-        "verdict": verdict, "reason": reason,
+        "verdict": overall, "reason": reason,
         "bonus_columns_found": [str(c) for c in bonus_cols],
-        "rows_tested": rows_tested,
-        "discretionary_rows": discretionary_rows,
-        "non_discretionary_rows": non_disc_rows,
+        "rows_tested": tested,
+        "discretionary_rows": n_d,
+        "non_discretionary_rows": n_nd,
+        "unclear_rows": unclear_rows,
         "samples": samples,
+        "per_bonus": per_bonus,
+        "consolidated_file": all_aggregated,
+        "aggregated_rows_skipped": aggregated_skipped,
     }
 
 
@@ -1984,6 +2140,9 @@ def run_setup_helper(adp_files, master_csv_file=None):
         "Rows Tested": bonus_info["rows_tested"],
         "Discretionary Rows": bonus_info["discretionary_rows"],
         "Non-Discretionary Rows": bonus_info["non_discretionary_rows"],
+        "Unclear Rows": bonus_info.get("unclear_rows", 0),
+        "Consolidated File": "Yes" if bonus_info.get("consolidated_file") else "No",
+        "Aggregated Rows Skipped": bonus_info.get("aggregated_rows_skipped", 0),
         "Bonus Columns": ", ".join(bonus_info["bonus_columns_found"]),
     }]
 
@@ -1998,6 +2157,7 @@ def run_setup_helper(adp_files, master_csv_file=None):
         "States_Detected": [{"State": s} for s in states],
         "Bonus_Classification": bonus_rows,
         "Bonus_Sample_Rows": bonus_info["samples"],
+        "Bonus_Per_Column": bonus_info.get("per_bonus", []),
         # New UZIO-setup sections: every MEMO candidate column (with auto-detect
         # flags) for the Contributions picker, and the structured tax rows for
         # the catalog-based mapping UI.
@@ -2077,23 +2237,34 @@ def _results_to_xlsx_bytes(results):
                 ("", ""),
                 ("---- Example row that proves the verdict ----", ""),
                 ("Associate ID", sample["associate"]),
-                ("Regular earnings", f"${sample['regular_earnings']:,}"),
-                ("Regular hours", sample["regular_hours"]),
                 ("Regular rate ($/hr)", f"${sample['regular_rate']}"),
-                ("Expected overtime rate  (1.5 x regular)", f"${sample['expected_ot_rate_1.5x']}"),
-                ("Actual overtime rate from this row", f"${sample['actual_ot_rate']}"),
-                ("Difference (%)", f"{sample['diff_pct']}%"),
+                ("Worked hours (Reg + OT + Dbl OT + Training)", sample["worked_hours"]),
+                ("Blended rate with bonus ($/hr)", f"${sample['blended_rate']}"),
+                ("Predicted OT if DISCRETIONARY (1.5 x regular)", f"${sample['predicted_ot_discretionary']:,}"),
+                ("Predicted OT if NON-DISCRETIONARY (blended)", f"${sample['predicted_ot_non_disc']:,}"),
+                ("Actual OT paid in this row", f"${sample['actual_ot']:,}"),
                 ("Bonus paid in this row", f"${sample['bonus_amt']:,}"),
                 ("", ""),
                 ("Plain-English explanation",
-                    "Actual OT rate is HIGHER than 1.5 x regular rate => the bonus was rolled into "
-                    "the regular rate before computing OT => bonus is NON-DISCRETIONARY (FLSA rule)."
+                    "Actual OT matches the BLENDED-rate prediction (bonus spread over all "
+                    "worked hours, half-time premium on the blended rate) => the bonus was "
+                    "rolled into the regular rate before computing OT => NON-DISCRETIONARY (FLSA)."
                     if bonus["Verdict"] == "non_discretionary" else
-                    "Actual OT rate matches 1.5 x regular rate exactly => the bonus did NOT inflate "
-                    "the regular rate basis => bonus is DISCRETIONARY."
+                    "Actual OT matches the plain 1.5 x regular-rate prediction => the bonus "
+                    "did NOT inflate the regular rate basis => DISCRETIONARY."
                     if bonus["Verdict"] == "discretionary" else
                     bonus["Reason"]),
             ]
+        per_bonus = results.get("Bonus_Per_Column") or []
+        if per_bonus:
+            rows2 += [("", ""), ("---- Per-bonus verdicts ----", "")]
+            for pb in per_bonus:
+                rows2.append((
+                    pb["column"],
+                    f"{str(pb['final_verdict']).upper().replace('_', '-')} — {pb['note']} "
+                    f"(individual: {pb['individual_verdict']} on {pb['individual_rows']} row(s); "
+                    f"combined: {pb['combined_verdict']} on {pb['combined_rows']} row(s))",
+                ))
         df2 = pd.DataFrame(rows2, columns=["Field", "Value"])
         df2.to_excel(writer, sheet_name="2. Bonus Verdict", index=False)
         ws2 = writer.sheets["2. Bonus Verdict"]
@@ -2142,12 +2313,16 @@ def _pick_bonus_example(samples, verdict):
     """Pick the single most illustrative row for the chosen verdict."""
     if not samples:
         return None
+
+    def gap(s):
+        return abs(s["actual_ot"] - s["predicted_ot_discretionary"])
+
     if verdict == "non_discretionary":
         candidates = [s for s in samples if s["verdict_row"] == "non_discretionary"]
-        return max(candidates, key=lambda s: s["diff_pct"]) if candidates else samples[0]
+        return max(candidates, key=gap) if candidates else samples[0]
     if verdict == "discretionary":
         candidates = [s for s in samples if s["verdict_row"] == "discretionary"]
-        return min(candidates, key=lambda s: abs(s["diff_pct"])) if candidates else samples[0]
+        return min(candidates, key=gap) if candidates else samples[0]
     return samples[0]
 
 
@@ -2266,18 +2441,43 @@ def _render_earning_setup_section(results, src_name):
 
     include_in_ot_map = {}
     if bonus_rows:
+        # Pre-fill each toggle from the per-bonus FLSA verdict (code-matched).
+        pb_by_code = {str(p.get("code", "")).upper(): p.get("final_verdict")
+                      for p in (results.get("Bonus_Per_Column") or [])}
+        review_codes = [c for c, v in pb_by_code.items() if v == "needs_review"]
+
         st.markdown("### Is the earning Non Discretionary?")
         st.caption(
             f"**{len(bonus_rows)} bonus earning(s)**. Toggle **ON = Non-Discretionary** "
             "(included in the overtime rate → *Include Bonus in Overtime = Yes*); "
-            "**OFF = Discretionary** (*= No*, default)."
+            "**OFF = Discretionary** (*= No*). Defaults are pre-filled from the "
+            "per-bonus FLSA test above — override if you know better."
         )
+        if review_codes:
+            st.warning(
+                "FLSA test could not settle these bonus code(s) — individual and "
+                "combined evidence disagree, please decide manually: "
+                + ", ".join(f"`{c}`" for c in review_codes)
+            )
         cols = st.columns(2)
         for i, (code, td) in enumerate(bonus_rows):
             label = f"{td} ({code})" if (code and btd_counts[td] > 1) else td
+            default_on = pb_by_code.get(str(code).upper()) == "non_discretionary"
+            tkey = f"adp_ppsh_nondisc::{autosync_row_key(code, td)}"
+            dkey = f"{tkey}::computed_default"
+            # Streamlit remembers the widget's state across reruns, so a verdict
+            # that CHANGES (e.g. new files uploaded mid-session) would otherwise
+            # keep showing the stale default. Follow the new verdict — but only
+            # when the user hasn't manually overridden the old one.
+            prev_default = st.session_state.get(dkey)
+            if tkey not in st.session_state:
+                st.session_state[tkey] = default_on
+            elif prev_default is not None and prev_default != default_on \
+                    and st.session_state[tkey] == prev_default:
+                st.session_state[tkey] = default_on
+            st.session_state[dkey] = default_on
             with cols[i % 2]:
-                on = st.toggle(label, value=False,
-                               key=f"adp_ppsh_nondisc::{autosync_row_key(code, td)}")
+                on = st.toggle(label, key=tkey)
             include_in_ot_map[autosync_row_key(code, td)] = "Yes" if on else "No"
 
     # ── Map earnings to an Earning Type (collapsed accordion; all earnings) ──
@@ -2830,34 +3030,53 @@ def render_ui():
     sample = _pick_bonus_example(results["Bonus_Sample_Rows"], verdict)
 
     if verdict == "non_discretionary":
-        st.error("**NON-DISCRETIONARY**")
+        st.error("**NON-DISCRETIONARY** — overall verdict (combined test across all "
+                 "bonus columns). Each earning's own verdict is in the table below.")
     elif verdict == "discretionary":
-        st.success("**DISCRETIONARY**")
+        st.success("**DISCRETIONARY** — overall verdict (combined test across all "
+                   "bonus columns). Each earning's own verdict is in the table below.")
     else:
         st.warning(f"**{verdict.upper()}** — {bonus['Reason']}")
 
     if sample:
+        breakdown = sample.get("bonus_breakdown") or f"{sample['bonus_amt']:,}"
         st.markdown(
             f"""
-**Example: Employee `{sample['associate']}`**
+**Example: Employee `{sample['associate']}`** — bonus(es) in this paycheck: **{breakdown}**
 
-- Regular earnings: **${sample['regular_earnings']:,}** over **{sample['regular_hours']} hrs** → regular rate = **${sample['regular_rate']}/hr**
-- Expected overtime rate (1.5 × regular rate) = **${sample['expected_ot_rate_1.5x']}/hr**
-- Actual overtime rate from the file = **${sample['actual_ot_rate']}/hr**
-- Bonus paid in this row: **${sample['bonus_amt']:,}**
+- Regular rate = **{sample['regular_rate']}/hr** · Worked hours (Reg + OT + Dbl OT + Training) = **{sample['worked_hours']}**
+- Blended rate with bonus = **{sample['blended_rate']}/hr** (total bonus {sample['bonus_amt']:,} spread over worked hours)
+- Predicted OT if **discretionary** (plain 1.5×): **{sample['predicted_ot_discretionary']:,}**
+- Predicted OT if **non-discretionary** (blended): **{sample['predicted_ot_non_disc']:,}**
+- **Actual OT paid: {sample['actual_ot']:,}**
+
+*(all amounts in $)*
 """
         )
         if verdict == "discretionary":
             st.markdown(
-                "→ Actual OT rate matches 1.5 × regular rate. The bonus did **not** "
+                "→ Actual OT matches the plain **1.5×** prediction — the bonus did **not** "
                 "inflate the regular rate basis, so it's **discretionary**."
             )
         elif verdict == "non_discretionary":
             st.markdown(
-                f"→ Actual OT rate is **higher** than 1.5 × regular rate "
-                f"(diff: {sample['diff_pct']}%). The bonus was rolled into the regular "
-                f"rate before computing OT, so it's **non-discretionary** under FLSA."
+                "→ Actual OT matches the **blended-rate** prediction — the bonus was rolled "
+                "into the regular rate before computing OT, so it's **non-discretionary** under FLSA."
             )
+
+    per_bonus = results.get("Bonus_Per_Column") or []
+    if per_bonus:
+        st.markdown(
+            "**Per-bonus verdicts** — *individual* = paychecks where only that bonus "
+            "appears; *combined* = tested with the sum of all bonuses on the paycheck:"
+        )
+        st.dataframe(pd.DataFrame([{
+            "Bonus Column": p["column"],
+            "Final Verdict": str(p["final_verdict"]).replace("_", " ").upper(),
+            "Individual": f"{p['individual_verdict']} ({p['individual_rows']} rows)",
+            "Combined": f"{p['combined_verdict']} ({p['combined_rows']} rows)",
+            "Note": p["note"],
+        } for p in per_bonus]), hide_index=True, use_container_width=True)
 
     # ------------------------------------------------------------------
     # ANSWER 2 — Which deductions are pre-tax vs post-tax
