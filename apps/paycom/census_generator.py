@@ -53,7 +53,7 @@ ALLOWED_JOB_TITLES = [
     'Dispatch', 'Management', 'Admin', 'Survey', 'Warehouse', 'Walker', 
     'Driver', 'Helper', 'Driver-Lite', 'Driver-Step Van', 
     'Driver-Unscheduled', 'Lead Driver', 'DDU Dedicated', 'DDU Shared', 
-    'Non-DSP Related', 'Driver-Major Appliance', 'E-Biker', 'TSO-PV Driver'
+    'Non-DSP Related', 'Driver -Major Appliance', 'E-Biker', 'TSO-PV Driver'
 ]
 
 def norm_colname(c: str) -> str:
