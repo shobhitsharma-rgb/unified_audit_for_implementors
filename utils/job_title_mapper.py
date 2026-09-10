@@ -82,8 +82,57 @@ def extract_dsp_titles(df: pd.DataFrame, vendor: str, resolved_field_map: dict |
                 break
     return sorted(list(titles), key=str.lower)
 
-def render_streamlit_section(df, vendor: str, resolved_field_map=None, key_prefix: str = "jtmap"):
-    """Renders the 'Map Job Titles to Amazon Catalog' UI block."""
+def titles_written_by_fixes(df, resolved_field_map=None, fix_options=None) -> list[str]:
+    """Job titles the Corrected Source writes into rows whose job title is BLANK.
+
+    The mapping below is built from the ORIGINAL file, but the sanity tool fills
+    blank job titles on download — with the Department value (fix_job_title /
+    fix_position / fix_driver_smart) or with the literal "Driver"
+    (fix_blank_jt_to_driver, for Non-Exempt Hourly employees). The onboarding
+    API looks up the CORRECTED title in this mapping
+    (EmployeeCensusValidator.validateJobTitle) and, if it is absent, skips the
+    employee with "Job Title '<x>' has an empty mapping value. This record will
+    be skipped." — the same message a blank mapping row produces, so the two are
+    easy to confuse. Seen live: ADP FEIN 853642271, one employee skipped on five
+    consecutive runs (Aug 2026), because "Driver" was never in the mapping.
+
+    Returns a SUPERSET of what the download writes: the FLSA / Pay Type
+    conditions are not re-evaluated here. Deliberate — an extra mapping row is
+    never looked up and costs nothing, while a missing one drops an employee.
+    """
+    fix_options = fix_options or {}
+    rfm = resolved_field_map or {}
+    c_jt = rfm.get("Job Title")
+    if df is None or not c_jt or c_jt not in df.columns:
+        return []
+    blank = df[c_jt].map(lambda v: _norm(v) == "")
+    if not blank.any():
+        return []
+
+    out: list[str] = []
+    c_dep = rfm.get("Department")
+    if (c_dep and c_dep in df.columns and
+            (fix_options.get("fix_job_title") or fix_options.get("fix_position")
+             or fix_options.get("fix_driver_smart"))):
+        out += [t for t in (_norm(v) for v in df.loc[blank, c_dep]) if t]
+    if fix_options.get("fix_blank_jt_to_driver"):
+        out.append("Driver")
+
+    seen, res = set(), []
+    for t in out:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            res.append(t)
+    return res
+
+def render_streamlit_section(df, vendor: str, resolved_field_map=None, key_prefix: str = "jtmap",
+                             extra_titles=None):
+    """Renders the 'Map Job Titles to Amazon Catalog' UI block.
+
+    `extra_titles` — titles the Corrected Source will contain that the original
+    file does not (see titles_written_by_fixes). They are added as mapping rows
+    so the API can resolve them.
+    """
     st.markdown("---")
     st.markdown("### 🏷️ Amazon Job Title Mapping")
     st.caption(
@@ -92,9 +141,24 @@ def render_streamlit_section(df, vendor: str, resolved_field_map=None, key_prefi
     )
 
     distinct_dsp_titles = extract_dsp_titles(df, vendor, resolved_field_map)
+    added = []
+    have = {t.lower() for t in distinct_dsp_titles}
+    for t in (extra_titles or []):
+        if t and t.lower() not in have:
+            have.add(t.lower())
+            added.append(t)
+    if added:
+        distinct_dsp_titles = sorted(distinct_dsp_titles + added, key=str.lower)
     if not distinct_dsp_titles:
         st.info("No job titles found in this file to map.")
         return
+    if added:
+        st.info(
+            "Added " + ", ".join(f"**{t}**" for t in added) + " — not in this file, but "
+            "the Corrected Source fills blank job titles with " +
+            ("it" if len(added) == 1 else "these") + ". Without a mapping row the "
+            "onboarding API skips those employees."
+        )
 
     standard_amazon_titles = load_amazon_catalog()
     if not standard_amazon_titles:

@@ -58,7 +58,8 @@ ALLOWED_JOB_TITLES = [
     'Dispatch', 'Management', 'Admin', 'Survey', 'Warehouse', 'Walker', 
     'Driver', 'Helper', 'Driver-Lite', 'Driver-Step Van', 
     'Driver-Unscheduled', 'Lead Driver', 'DDU Dedicated', 'DDU Shared', 
-    'Non-DSP Related', 'Driver -Major Appliance', 'E-Biker', 'TSO-PV Driver'
+    'Non-DSP Related', 'Driver -Major Appliance', 'E-Biker', 'TSO-PV Driver',
+    'Captain Planet Driver', 'Box Truck Driver'
 ]
 
 def norm_colname(c: str) -> str:
@@ -636,8 +637,9 @@ When you click **Download Corrected Source**, the following corrections are appl
         st.info("The Change Log is a separate audit trail showing all automated corrections made to the file.")
 
     # --- Job Title Mapping Section ---
-    from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping
-    render_job_title_mapping(df_adp, "adp", resolved_field_map, key_prefix="adp_sanity")
+    from utils.job_title_mapper import render_streamlit_section as render_job_title_mapping, titles_written_by_fixes
+    render_job_title_mapping(df_adp, "adp", resolved_field_map, key_prefix="adp_sanity",
+                             extra_titles=titles_written_by_fixes(df_adp, resolved_field_map, fix_options))
 
 def render_census_generator():
     st.title("ADP - Full Census Generation")
