@@ -6,33 +6,37 @@ def inject_premium_styles():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;700;800&family=Inter:wght@300;400;600&display=swap');
 
+        /* Colours: never set a TEXT colour here - text inherits the colour of
+           the theme the viewer picked (Light / Dark / System, Streamlit's menu).
+           Tints are translucent so they sit on either background; accents use
+           light-dark(), which follows that choice via .stApp's color-scheme.
+           See frontend.md "Light and dark theme". */
+
         /* Typography: Apply to content but NOT to system icons/expander-arrows */
         .stMarkdown p, .stMarkdown li, .stMarkdown label, .stTable, .stDataFrame {
             font-family: 'Inter', sans-serif !important;
-            color: #1b1c1c !important;
         }
 
         /* Headers with Manrope */
         h1, h2, h3, h4, h5, h6 {
             font-family: 'Manrope', sans-serif !important;
             font-weight: 700 !important;
-            color: #050e39 !important;
             letter-spacing: -0.02em !important;
         }
 
         /* The Editorial Card Surface */
         .premium-card {
-            background-color: #ffffff;
+            background-color: rgba(128, 128, 128, 0.06);
             border-radius: 12px;
             padding: 24px;
             margin-bottom: 20px;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(198, 197, 208, 0.2);
+            border: 1px solid rgba(128, 128, 128, 0.2);
         }
 
         /* Action Hub Theme */
-        .action-hub-error { background: linear-gradient(145deg, #fff5f5, #ffffff); border-left: 5px solid #ba1a1a; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
-        .action-hub-warning { background: linear-gradient(145deg, #fffaf3, #ffffff); border-left: 5px solid #e8881f; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .action-hub-error { background: rgba(229, 72, 77, 0.08); border-left: 5px solid #e5484d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .action-hub-warning { background: rgba(217, 115, 13, 0.08); border-left: 5px solid #d9730d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
 
         /* Glossy Primary Button - High Contrast Fix */
         div.stButton > button {
@@ -55,10 +59,10 @@ def inject_premium_styles():
         /* Refined Expander (FIX: Don't break the SVG icons) */
         .stExpander {
             border: none !important;
-            background-color: #f8f9fa !important;
+            background-color: rgba(128, 128, 128, 0.05) !important;
             border-radius: 12px !important;
             margin-bottom: 16px !important;
-            border: 1px solid rgba(0,0,0,0.05) !important;
+            border: 1px solid rgba(128, 128, 128, 0.2) !important;
         }
         
         /* Targeted Title text - Leave the summary arrow alone */
@@ -66,22 +70,21 @@ def inject_premium_styles():
             font-family: 'Manrope', sans-serif !important;
             font-weight: 700 !important;
             font-size: 1.05rem !important;
-            color: #050e39 !important;
             margin: 0 !important;
         }
 
         /* Pill Badges */
         .pill-error {
-            background-color: #ffdad6;
-            color: #ba1a1a;
+            background-color: rgba(229, 72, 77, 0.15);
+            color: light-dark(#ba1a1a, #ff7b72);
             padding: 2px 10px;
             border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 600;
         }
         .pill-warning {
-            background-color: #ffdcc1;
-            color: #6c3a00;
+            background-color: rgba(217, 115, 13, 0.15);
+            color: light-dark(#9a4d00, #f0a04b);
             padding: 2px 10px;
             border-radius: 20px;
             font-size: 0.85rem;
@@ -90,11 +93,33 @@ def inject_premium_styles():
         </style>
     """, unsafe_allow_html=True)
 
+
+# Semantic tones as (translucent tint, accent). The tint sits on either theme's
+# background. The accent is CSS light-dark(): Streamlit sets `color-scheme` on
+# .stApp to the theme the viewer picked (not the OS's), so it resolves to the
+# deep shade on white and the bright shade on #0e1117. Body text is never
+# coloured — it inherits the theme's text colour.
+_TONES = {
+    "error": ("rgba(229, 72, 77, 0.10)", "light-dark(#ba1a1a, #ff7b72)"),
+    "ok":    ("rgba(43, 154, 102, 0.10)", "light-dark(#1a7a4a, #3fb950)"),
+    "warn":  ("rgba(217, 115, 13, 0.10)", "light-dark(#9a4d00, #f0a04b)"),
+}
+
+
+def _callout(tone, title, body, margin="8px 0 4px 0"):
+    """Coloured header box (red / green / amber) used above result lists."""
+    tint, accent = _TONES[tone]
+    return (f'<div style="background:{tint}; border-left:5px solid {accent}; border-radius:8px; padding:16px 20px; margin:{margin};">'
+            f'<h4 style="color:{accent}; margin:0 0 4px 0; border:none; padding:0;">{title}</h4>'
+            f'<p style="opacity:0.8; margin:0; font-size:0.9rem;">{body}</p>'
+            '</div>')
+
+
 def render_premium_header(title, subtitle=None):
     """Renders a styled header for content sections."""
     st.markdown(f"### {title}")
     if subtitle:
-        st.markdown(f"<p style='color: #46464f; margin-top: -10px; margin-bottom: 20px;'>{subtitle}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='opacity: 0.75; margin-top: -10px; margin-bottom: 20px;'>{subtitle}</p>", unsafe_allow_html=True)
 
 def action_hub_container(type='error'):
     """Context manager for rendering audit findings in styled containers."""
@@ -103,9 +128,8 @@ def action_hub_container(type='error'):
 
 def render_finding_card(title, data_dict, type='error'):
     """Renders a high-fidelity card for audit findings (minified for Streamlit compatibility)."""
-    bg_color = "#fff5f5" if type == 'error' else "#fffaf3"
-    border_color = "#ba1a1a" if type == 'error' else "#e8881f"
-    text_color = "#93000a" if type == 'error' else "#673700"
+    bg_color, border_color = _TONES['error' if type == 'error' else 'warn']
+    text_color = border_color
     
     # We build a single-line minified HTML string to avoid Streamlit markdown parsing issues
     html = f'<div style="background: {bg_color}; border-left: 5px solid {border_color}; border-radius: 8px; padding: 16px; margin-bottom: 16px;">'
@@ -116,7 +140,7 @@ def render_finding_card(title, data_dict, type='error'):
     
     for label, value in data_dict.items():
         html += '<div>'
-        html += f'<p style="font-size: 0.75rem; color: #46464f; margin: 0;">{label}</p>'
+        html += f'<p style="font-size: 0.75rem; opacity: 0.75; margin: 0;">{label}</p>'
         html += f'<p style="font-size: 1rem; font-weight: 600; color: {text_color}; margin: 0;">{value}</p>'
         html += '</div>'
 
@@ -128,12 +152,11 @@ def render_duplicate_column_error(dupes):
     """Hard-stop error shown when an uploaded census file has repeated column
     headers. Tells the user — in plain English — exactly which columns repeat,
     what to do, and that nothing has been generated."""
-    st.markdown("""
-<div style="background:#fff5f5; border-left:5px solid #ba1a1a; border-radius:8px; padding:16px 20px; margin:8px 0 4px 0;">
-<h4 style="color:#93000a; margin:0 0 4px 0; border:none; padding:0;">⛔ This file can't be processed — it has repeated column names</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">The sanity check has been stopped. No census file has been generated.</p>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(_callout(
+        "error",
+        "⛔ This file can't be processed — it has repeated column names",
+        "The sanity check has been stopped. No census file has been generated."),
+        unsafe_allow_html=True)
     dupe_list = "\n".join(f"- **{d}**" for d in dupes)
     st.markdown(
         f"The column name{'s' if len(dupes) != 1 else ''} below appear "
@@ -173,12 +196,11 @@ _FIELD_FRIENDLY = {
 def render_missing_column_error(missing):
     """Hard-stop error shown when an uploaded census file is missing required
     columns. `missing` is a list of (expected_header, standard_field_name)."""
-    st.markdown("""
-<div style="background:#fff5f5; border-left:5px solid #ba1a1a; border-radius:8px; padding:16px 20px; margin:8px 0 4px 0;">
-<h4 style="color:#93000a; margin:0 0 4px 0; border:none; padding:0;">⛔ This file can't be processed — required columns are missing</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">The sanity check has been stopped. No census file has been generated.</p>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(_callout(
+        "error",
+        "⛔ This file can't be processed — required columns are missing",
+        "The sanity check has been stopped. No census file has been generated."),
+        unsafe_allow_html=True)
     rows = "\n".join(
         f"- **{hdr}** — the {_FIELD_FRIENDLY.get(std, std)} column"
         for hdr, std in missing
@@ -366,12 +388,11 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
 
         n_emp = len(hard_errors['Employee ID'].unique())
         n_issues = len(issue_to_ids)
-        st.markdown(f"""
-<div style="background:#fff5f5; border-left:5px solid #ba1a1a; border-radius:8px; padding:16px 20px; margin:8px 0 4px 0;">
-<h4 style="color:#93000a; margin:0 0 4px 0; border:none; padding:0;">⚠️ {n_issues} type{'s' if n_issues != 1 else ''} of issue need your attention</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">Found across {n_emp} employee{'s' if n_emp != 1 else ''}. Please review these before uploading to Uzio — each one is also listed in the Change Log of your download.</p>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(_callout(
+            "error",
+            f"⚠️ {n_issues} type{'s' if n_issues != 1 else ''} of issue need your attention",
+            f"Found across {n_emp} employee{'s' if n_emp != 1 else ''}. Please review these before uploading to Uzio — each one is also listed in the Change Log of your download."),
+            unsafe_allow_html=True)
 
         with st.container(height=350, border=True):
             for plain_issue, ids in sorted(issue_to_ids.items(), key=lambda kv: -len(kv[1])):
@@ -441,12 +462,11 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         fixes.append(f"**Employee was marked On Leave / Inactive but has a termination date** — so I set the status to Terminated. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_fixes)}`")
 
     if fixes:
-        st.markdown("""
-<div style="background:#f0faf4; border-left:5px solid #1a7a4a; border-radius:8px; padding:16px 20px; margin:16px 0 4px 0;">
-<h4 style="color:#1a4a2a; margin:0 0 4px 0; border:none; padding:0;">✅ Fixed automatically — no action needed</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">These corrections are applied to your file when you download it, and recorded in the Change Log.</p>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(_callout(
+            "ok",
+            "✅ Fixed automatically — no action needed",
+            "These corrections are applied to your file when you download it, and recorded in the Change Log.", margin="16px 0 4px 0"),
+            unsafe_allow_html=True)
         with st.container(height=260, border=True):
             for fix in fixes:
                 st.markdown(f"- {fix}")
@@ -475,12 +495,11 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         reviews.append(f"**Gender value isn't one of Uzio's accepted options** (Male, Female, M, F, Intersex) — Uzio will reject this field and leave it blank if uploaded as-is. I left the value unchanged — please review and correct it if needed. {n} employee{'s' if n != 1 else ''}: `{_ids_str(gender_invalid)}`")
 
     if reviews:
-        st.markdown("""
-<div style="background:#fffaf3; border-left:5px solid #e8881f; border-radius:8px; padding:16px 20px; margin:16px 0 4px 0;">
-<h4 style="color:#6c3a00; margin:0 0 4px 0; border:none; padding:0;">👀 Please review before uploading</h4>
-<p style="color:#46464f; margin:0; font-size:0.9rem;">Please review each of these before uploading — they either need a decision from you or a quick follow-up step in Uzio. They're noted in the Change Log too.</p>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(_callout(
+            "warn",
+            "👀 Please review before uploading",
+            "Please review each of these before uploading — they either need a decision from you or a quick follow-up step in Uzio. They're noted in the Change Log too.", margin="16px 0 4px 0"),
+            unsafe_allow_html=True)
         with st.container(height=180, border=True):
             for r in reviews:
                 st.markdown(f"- {r}")

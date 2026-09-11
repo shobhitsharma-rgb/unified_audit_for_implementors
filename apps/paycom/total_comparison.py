@@ -677,8 +677,8 @@ def render_ui():
                     )
                 with st.expander("View tax rate verification (SS / Medicare / FUTA / SUTA)", expanded=False):
                     def color_tax(val):
-                        if val == "Mismatch": return 'background-color: #FFE5E5'
-                        if val == "Match":    return 'background-color: #E5F5E5'
+                        if val == "Mismatch": return 'background-color: rgba(229, 72, 77, 0.22)'
+                        if val == "Match":    return 'background-color: rgba(43, 154, 102, 0.22)'
                         return ''
                     st.dataframe(
                         tax_df.style.map(color_tax, subset=["Status"]),

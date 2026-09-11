@@ -7,10 +7,9 @@ st.set_page_config(page_title="Data Migration Assistant", layout="wide", page_ic
 # Custom CSS for UI enhancements
 st.markdown("""
 <style>
-    /* Main container styling */
-    .main {
-        background-color: #f8f9fa;
-    }
+    /* No main-area background or text colours: the viewer's Light / Dark /
+       System theme owns them (frontend.md "Light and dark theme"). Only the
+       sidebar paints its own navy, so only it may set its own white text. */
     
     /* Sidebar styling */
     section[data-testid="stSidebar"] {
@@ -22,7 +21,6 @@ st.markdown("""
     
     /* Headers */
     h1, h2, h3 {
-        color: #070738;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
@@ -58,16 +56,12 @@ st.markdown("""
         font-size: 15px; /* Consistent font size */
     }
     
-    /* Ensure main area radio labels are visible (dark text) */
+    /* Main area radio labels */
     .main .stRadio p {
-        color: #070738 !important;
         font-weight: bold;
     }
-    .main .stRadio label {
-        color: #333333 !important;
-    }
     .main .stRadio label:hover {
-        background-color: #f0f2f6 !important;
+        background-color: rgba(128, 128, 128, 0.12) !important;
     }
     
     /* Info box */

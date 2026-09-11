@@ -106,18 +106,18 @@ def _inject_payment_styles():
         .pay-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%); border-radius:16px; padding:26px 30px; margin-bottom:14px; }
         .pay-hero-title { color:#ffffff !important; font-family:'Manrope',sans-serif; font-size:28px; font-weight:800; letter-spacing:-0.02em; }
         .pay-hero-sub { color:#c7d2fe !important; font-family:'Inter',sans-serif; font-size:15px; margin-top:6px; line-height:1.5; }
-        .step-pill { display:inline-block; background:#eef2ff; color:#3730a3; font-weight:700; border-radius:999px; padding:2px 10px; font-size:12px; }
-        .metric-card { background:#ffffff; border:1px solid #e6e8ee; border-radius:14px; padding:16px 14px; text-align:center; box-shadow:0 1px 3px rgba(16,24,40,.06); }
+        .step-pill { display:inline-block; background:rgba(99,102,241,.15); color:light-dark(#3730a3, #a5b4fc); font-weight:700; border-radius:999px; padding:2px 10px; font-size:12px; }
+        .metric-card { background:rgba(128,128,128,.06); border:1px solid rgba(128,128,128,.2); border-radius:14px; padding:16px 14px; text-align:center; box-shadow:0 1px 3px rgba(16,24,40,.06); }
         .metric-icon { font-size:20px; }
-        .metric-num { font-family:'Manrope',sans-serif; font-size:30px; font-weight:800; color:#0f172a; line-height:1.15; }
-        .metric-label { font-family:'Inter',sans-serif; font-size:12.5px; color:#475467; margin-top:2px; }
-        .action-card { background:#fff7ed; border:1px solid #fed7aa; border-left:6px solid #ea580c; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
-        .action-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:#9a3412 !important; margin-bottom:8px; }
-        .action-body { font-family:'Inter',sans-serif; font-size:14.5px; color:#7c2d12 !important; line-height:1.65; }
+        .metric-num { font-family:'Manrope',sans-serif; font-size:30px; font-weight:800; line-height:1.15; }
+        .metric-label { font-family:'Inter',sans-serif; font-size:12.5px; opacity:.75; margin-top:2px; }
+        .action-card { background:rgba(234,88,12,.08); border:1px solid rgba(234,88,12,.35); border-left:6px solid #ea580c; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
+        .action-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:light-dark(#9a3412, #f0a04b) !important; margin-bottom:8px; }
+        .action-body { font-family:'Inter',sans-serif; font-size:14.5px; line-height:1.65; }
         .action-body code { background:#fde68a; padding:1px 6px; border-radius:5px; color:#7c2d12; font-weight:700; }
-        .ok-card { background:#ecfdf5; border:1px solid #a7f3d0; border-left:6px solid #059669; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
-        .ok-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:#065f46 !important; }
-        .ok-body { font-family:'Inter',sans-serif; font-size:14.5px; color:#065f46 !important; margin-top:4px; }
+        .ok-card { background:rgba(43,154,102,.08); border:1px solid rgba(43,154,102,.35); border-left:6px solid #2b9a66; border-radius:12px; padding:18px 20px; margin:4px 0 10px; }
+        .ok-title { font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; color:light-dark(#065f46, #3fb950) !important; }
+        .ok-body { font-family:'Inter',sans-serif; font-size:14.5px; margin-top:4px; }
         .stButton button, .stDownloadButton button { border-radius:10px !important; font-weight:700 !important; }
         .stButton button[kind="primary"], .stDownloadButton button[kind="primary"] { background:linear-gradient(135deg,#1e3a8a,#3b82f6) !important; border:none !important; }
         .stButton button[kind="primary"] p, .stDownloadButton button[kind="primary"] p { color:#ffffff !important; }

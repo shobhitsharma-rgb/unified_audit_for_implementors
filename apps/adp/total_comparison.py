@@ -1204,7 +1204,7 @@ def render_ui():
                 )
             with st.expander(f"View pay-stub count comparison ({len(stub_df)} employees)", expanded=False):
                 def color_stub(val):
-                    return 'background-color: #FFE5E5' if val != "Match" else ''
+                    return 'background-color: rgba(229, 72, 77, 0.22)' if val != "Match" else ''
                 st.dataframe(
                     stub_df.style.map(color_stub, subset=["Status"]),
                     use_container_width=True,
@@ -1221,8 +1221,8 @@ def render_ui():
                 )
             with st.expander("View tax rate verification (SS / Medicare / FUTA / SUTA)", expanded=False):
                 def color_tax(val):
-                    if val == "Mismatch": return 'background-color: #FFE5E5'
-                    if val == "Match":    return 'background-color: #E5F5E5'
+                    if val == "Mismatch": return 'background-color: rgba(229, 72, 77, 0.22)'
+                    if val == "Match":    return 'background-color: rgba(43, 154, 102, 0.22)'
                     return ''
                 st.dataframe(
                     tax_df.style.map(color_tax, subset=["Status"]),
