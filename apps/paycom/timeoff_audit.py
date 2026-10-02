@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.file_io import read_report
 import pandas as pd
 import io
 import re
@@ -18,22 +19,9 @@ def clean_id(x):
     return s
 
 def run_tool(file_paycom, file_uzio):
-    # 1. Read Paycom Report (Likely HTML disguised as XLS)
+    # 1. Read the Paycom report: a workbook, a CSV, or HTML saved as .xls
     try:
-        # Try read_html first as it's common for Paycom 'xls'
-        dfs = pd.read_html(file_paycom, header=0)
-        if not dfs:
-            st.error("No tables found in Paycom file.")
-            return None
-        df_p = dfs[0] # Assume main table is first
-    except ValueError:
-        # Fallback if actual Excel or CSV
-        file_paycom.seek(0)
-        try:
-             df_p = pd.read_excel(file_paycom)
-        except:
-             file_paycom.seek(0)
-             df_p = pd.read_csv(file_paycom)
+        df_p = read_report(file_paycom, header=0)
     except Exception as e:
         st.error(f"Error reading Paycom file: {e}")
         return None

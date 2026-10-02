@@ -91,3 +91,39 @@ def as_excel_stream(file):
     out.seek(0)
     out.name = (getattr(file, "name", "upload") or "upload") + ".xlsx"
     return out
+
+def read_report(file, header=0, **kwargs):
+    """A vendor report: a real workbook, a CSV, or an HTML table saved as `.xls`.
+
+    Paycom exports several reports as HTML with an `.xls` name, so the parser has
+    to be chosen by what the bytes actually are, not by the extension. HTML is
+    tried LAST and only when the content looks like HTML, because `pd.read_html`
+    needs lxml and raises ImportError when it is missing - that error used to
+    surface as "Error reading Paycom file: Import lxml failed" even for a
+    perfectly good .xlsx.
+    """
+    if hasattr(file, "seek"):
+        file.seek(0)
+    data = file.getvalue()
+    head = data[:8]
+
+    if head.startswith(b"PK") or head.startswith(bytes.fromhex("d0cf11e0")):
+        return pd.read_excel(io.BytesIO(data), header=header, **kwargs)
+
+    text_head = data[:4096].decode("utf-8", errors="replace").lower()
+    if "<table" in text_head or "<html" in text_head:
+        try:
+            tables = pd.read_html(io.BytesIO(data), header=header)
+        except ImportError as e:
+            raise ImportError(
+                "This report is an HTML table saved as a spreadsheet, which needs the "
+                "`lxml` package to read. Install it (pip install lxml) or re-export the "
+                f"report as .xlsx or .csv. Original error: {e}") from e
+        if not tables:
+            raise ValueError("No tables found in the uploaded report.")
+        return tables[0]
+
+    try:
+        return pd.read_csv(io.BytesIO(data), header=header, **kwargs)
+    except UnicodeDecodeError:
+        return pd.read_csv(io.BytesIO(data), header=header, encoding="latin1", **kwargs)
