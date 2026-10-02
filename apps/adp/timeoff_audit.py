@@ -4,6 +4,7 @@ import re
 import openpyxl
 import pandas as pd
 import streamlit as st
+from utils.file_io import read_table, as_excel_stream
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 from apps.adp.prior_payroll_sanity import _evaluate_cell
@@ -64,7 +65,7 @@ def read_adp_balances(file_adp):
     Returns (DataFrame[id, name, balance], error).
     """
     try:
-        wb = openpyxl.load_workbook(file_adp, data_only=False)
+        wb = openpyxl.load_workbook(as_excel_stream(file_adp), data_only=False)
     except Exception as e:
         return None, f"Error reading ADP file: {e}"
 
@@ -134,7 +135,7 @@ def read_census(file_census):
     Returns (DataFrame[id, status, termination date, name], error).
     """
     try:
-        book = pd.read_excel(file_census, sheet_name=None,
+        book = read_table(file_census, sheet_name=None,
                              header=UZIO_HEADER_ROW - 1, dtype=str)
     except Exception as e:
         return None, f"Error reading census file: {e}"
@@ -386,11 +387,11 @@ def render_ui():
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        f_a = st.file_uploader("ADP Balance Summary", type=["xlsx"], key="at_a")
+        f_a = st.file_uploader("ADP Balance Summary", type=["xlsx", "xls", "csv"], key="at_a")
     with col2:
         f_u = st.file_uploader("Uzio Template", type=["xlsx"], key="at_u")
     with col3:
-        f_c = st.file_uploader("UZIO Census (optional)", type=["xlsx", "xlsm"], key="at_c")
+        f_c = st.file_uploader("UZIO Census (optional)", type=["xlsx", "xlsm", "csv"], key="at_c")
 
     # st.download_button triggers a rerun of its own, so results computed inside
     # the Generate block would vanish the moment the first file is downloaded —

@@ -277,7 +277,7 @@ def render_ui():
 
     col1, col2 = st.columns(2)
     with col1:
-        f_p = st.file_uploader("Paycom TimeOff Report", type=["xls", "html", "xlsx"], key="pt_p")
+        f_p = st.file_uploader("Paycom TimeOff Report", type=["xls", "html", "xlsx", "csv"], key="pt_p")
     with col2:
         f_u = st.file_uploader("Uzio Template", type=["xlsx"], key="pt_u")
 

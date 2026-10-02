@@ -1,6 +1,11 @@
 import streamlit as st
 import pandas as pd
+import csv
 import io
+
+from utils.deduction_mapping import (
+    load_deduction_mapping, unmapped_source_deductions, REQUIRED_COLUMNS,
+)
 import re
 from datetime import datetime
 from utils.audit_utils import get_identity_match_map, norm_ssn_canonical
@@ -18,6 +23,60 @@ def norm_col(c):
     if c is None: return ""
     return str(c).strip().replace("\n", " ").strip()
 
+def read_tabular(file, matcher, preview_rows=20):
+    """Read an uploaded Excel OR CSV and return the sheet whose header row matches.
+
+    `matcher` is given the lower-cased, non-empty cell values of a candidate row and
+    says whether that row is the header. Excel is tried first (every sheet), then CSV.
+    Returns None when nothing matches, so the caller can fall back or raise.
+    """
+    data = file.getvalue()
+    try:
+        xls = pd.ExcelFile(io.BytesIO(data), engine='openpyxl')
+        for sheet in xls.sheet_names:
+            peek = pd.read_excel(xls, sheet_name=sheet, header=None, nrows=preview_rows)
+            for idx, row in peek.iterrows():
+                vals = [str(v).strip().lower() for v in row.values if pd.notna(v)]
+                if matcher(vals):
+                    df = pd.read_excel(xls, sheet_name=sheet, header=idx, dtype=str)
+                    df.columns = [norm_col(c) for c in df.columns]
+                    return df
+    except Exception:
+        pass   # not an Excel file (or no sheet matched) -- fall through to CSV
+
+    try:
+        text = data.decode("utf-8-sig", errors="replace")
+        row_index = 0     # counts the rows pandas will see, so `header=` lines up
+        for raw_row in csv.reader(io.StringIO(text)):
+            if not raw_row:
+                continue  # a wholly blank line: csv.reader yields it, pandas skips it
+            vals = [str(v).strip().lower() for v in raw_row if str(v).strip()]
+            if matcher(vals):
+                df = pd.read_csv(io.BytesIO(data), header=row_index, dtype=str)
+                df.columns = [norm_col(c) for c in df.columns]
+                return df
+            row_index += 1
+            if row_index >= preview_rows:
+                break
+    except Exception:
+        pass
+    return None
+
+
+def read_adp_deduction(file):
+    """ADP Voluntary Deduction export, Excel or CSV. Falls back to the first row
+    as the header when none of the expected labels is found."""
+    tokens = ("employee name", "associate id", "deduction code", "deduction description")
+    df = read_tabular(file, lambda vals: any(t in v for v in vals for t in tokens))
+    if df is None:
+        try:
+            df = pd.read_csv(io.BytesIO(file.getvalue()), header=0, dtype=str)
+        except Exception:
+            df = pd.read_excel(io.BytesIO(file.getvalue()), header=0, dtype=str)
+        df.columns = [norm_col(c) for c in df.columns]
+    return df
+
+
 def clean_money_val(x):
     """Parse money/percentage strings to float. Returns original string if not a number."""
     if pd.isna(x) or x == "":
@@ -32,42 +91,20 @@ def clean_money_val(x):
         return s
 
 def read_uzio_deduction(file):
-    """
-    Read Uzio Deduction Export.
-    Search all sheets for header row containing 'Employee Id' and 'Deduction Name'.
-    """
-    xls = pd.ExcelFile(io.BytesIO(file.getvalue()), engine='openpyxl')
-    
-    for sheet in xls.sheet_names:
-        # Read first 20 rows
-        df_raw = pd.read_excel(xls, sheet_name=sheet, header=None, nrows=20)
-        
-        header_row_idx = None
-        for idx, row in df_raw.iterrows():
-            row_vals = [str(v).strip().lower() for v in row.values if pd.notna(v)]
-            # Strict check: Must have Employee Id AND Deduction Name
-            if any("employee id" in v for v in row_vals) and any("deduction name" in v for v in row_vals):
-                header_row_idx = idx
-                break
-        
-        if header_row_idx is not None:
-             # Found it!
-             df = pd.read_excel(xls, sheet_name=sheet, header=header_row_idx, dtype=str)
-             # Normalize columns
-             df.columns = [norm_col(c) for c in df.columns]
-             return df
+    """Uzio Deduction Export, Excel or CSV.
 
-    # Fallback if strict check fails: Try just Employee Id
-    for sheet in xls.sheet_names:
-        df_raw = pd.read_excel(xls, sheet_name=sheet, header=None, nrows=20)
-        for idx, row in df_raw.iterrows():
-             row_vals = [str(v).strip().lower() for v in row.values if pd.notna(v)]
-             if any("employee id" in v for v in row_vals):
-                  df = pd.read_excel(xls, sheet_name=sheet, header=idx, dtype=str)
-                  df.columns = [norm_col(c) for c in df.columns]
-                  return df
-                  
-    raise ValueError("Could not find 'Employee Id' column in any sheet.")
+    Prefers a header row carrying both 'Employee Id' and 'Deduction Name'; falls
+    back to one carrying 'Employee Id' alone.
+    """
+    df = read_tabular(file, lambda vals: any("employee id" in v for v in vals)
+                      and any("deduction name" in v for v in vals))
+    if df is None:
+        df = read_tabular(file, lambda vals: any("employee id" in v for v in vals))
+    if df is None:
+        raise ValueError("Could not find an 'Employee Id' column in any sheet of the Excel file, "
+                         "or in the first rows of the CSV.")
+    return df
+
 
 def run_audit(file_uzio, file_adp, UI_MAPPING):
     # 1. Load Data
@@ -80,21 +117,7 @@ def run_audit(file_uzio, file_adp, UI_MAPPING):
 
     # ADP Data File
     try:
-        xls_adp = pd.ExcelFile(io.BytesIO(file_adp.getvalue()), engine='openpyxl')
-        
-        # Determine ADP header row
-        adp_sheet = xls_adp.sheet_names[0]
-        # Peek at first few rows to find "EMPLOYEE NAME"
-        peek_df = pd.read_excel(xls_adp, sheet_name=adp_sheet, nrows=20, header=None)
-        
-        header_row_idx = 0
-        for idx, row in peek_df.iterrows():
-            row_str = " ".join([str(val).upper() for val in row.values])
-            if "EMPLOYEE NAME" in row_str or "ASSOCIATE ID" in row_str:
-                header_row_idx = idx
-                break
-                
-        df_adp = pd.read_excel(xls_adp, sheet_name=adp_sheet, header=header_row_idx, dtype=str)
+        df_adp = read_adp_deduction(file_adp)
     except Exception as e:
         return None, f"Error reading ADP Data File: {e}", []
 
@@ -328,6 +351,9 @@ def _generate_output(results):
     return out_buffer.getvalue(), None, []
 
 
+# Kept for reference only: this used to populate the Uzio side of the manual
+# mapping dropdowns, which the Employee Deduction Mapping upload replaced.
+# Nothing calls it now.
 def get_unique_uzio_deductions_from_excel(file):
     try:
         file.seek(0)
@@ -344,21 +370,8 @@ def get_unique_uzio_deductions_from_excel(file):
 def get_unique_adp_deductions_from_excel(file):
     try:
         file.seek(0)
-        xls_adp = pd.ExcelFile(io.BytesIO(file.getvalue()), engine='openpyxl')
-        
-        adp_sheet = xls_adp.sheet_names[0]
-        peek_df = pd.read_excel(xls_adp, sheet_name=adp_sheet, nrows=20, header=None)
-        
-        header_row_idx = 0
-        for idx, row in peek_df.iterrows():
-            row_str = " ".join([str(val).upper() for val in row.values])
-            if "EMPLOYEE NAME" in row_str or "DEDUCTION CODE" in row_str:
-                header_row_idx = idx
-                break
-                
-        df_adp = pd.read_excel(xls_adp, sheet_name=adp_sheet, header=header_row_idx, dtype=str)
-        df_adp.columns = [norm_col(c) for c in df_adp.columns]
-        
+        df_adp = read_adp_deduction(file)
+
         adp_ded_desc_col = next((c for c in df_adp.columns if "deduction description" in c.lower()), None)
         if not adp_ded_desc_col:
             adp_ded_desc_col = next((c for c in df_adp.columns if "deduction code" in c.lower()), None)
@@ -385,91 +398,106 @@ def render_ui():
     st.title("ADP to Uzio Deduction Audit Tool")
     st.markdown("""
     **Instructions**:
-    1. Upload **Uzio Deduction Export** (Excel).
-    2. Upload **ADP Voluntary Deduction Export** (Excel).
-    3. Map the extracted ADP deductions to Uzio deductions, then click **Run Comparison**.
+    1. Upload **Uzio Deduction Export** (Excel or CSV).
+    2. Upload **ADP Voluntary Deduction Export** (Excel or CSV).
+    3. Upload the **Employee Deduction Mapping** CSV from the ADP Prior Payroll
+       Setup Helper (`<Client>_EE_Deductions_mapping.csv`), then click **Run Audit**.
     """)
     
     col1, col2 = st.columns(2)
     with col1:
-        u_file = st.file_uploader("Upload Uzio Deduction File", type=["xlsx", "xls"], key="adp_ded_uzio")
+        u_file = st.file_uploader("Upload Uzio Deduction File", type=["xlsx", "xls", "csv"], key="adp_ded_uzio")
     with col2:
-        a_file = st.file_uploader("Upload ADP Deduction File", type=["xlsx", "xls"], key="adp_ded_adp")
+        a_file = st.file_uploader("Upload ADP Deduction File", type=["xlsx", "xls", "csv"], key="adp_ded_adp")
+
+    m_file = st.file_uploader(
+        "Upload Employee Deduction Mapping (from the Prior Payroll Setup Helper)",
+        type=["csv", "xlsx", "xls"], key="adp_ded_mapping",
+        help="The <Client>_EE_Deductions_mapping.csv the setup helper produces. "
+             "Columns: " + ", ".join(REQUIRED_COLUMNS),
+    )
 
     client_name = st.text_input("Enter Client Name (for Report Filename)", value="Client_Name")
 
-    if u_file and a_file:
+    if u_file and a_file and m_file:
          st.markdown("---")
-         st.subheader("Map Deductions")
-         
-         uzio_deductions = get_unique_uzio_deductions_from_excel(u_file)
-         adp_deductions = get_unique_adp_deductions_from_excel(a_file)
-         
-         if not uzio_deductions:
-              st.error("Could not find any 'Deduction Name' values in the Uzio file.")
-         elif not adp_deductions:
-              st.error("Could not find any Deduction Descriptions or Codes in the ADP file.")
-         else:
-              st.markdown("Please map the ADP Deductions to the corresponding Uzio Deductions below:")
-              
-              ui_mapping = {}
-              
-              # Initialize session state for mappings
-              for a_ded in adp_deductions:
-                  key = f"map_adp_{a_ded}"
-                  if key not in st.session_state:
-                      default_val = "— Ignore / Skip —"
-                      for opt in uzio_deductions:
-                          if opt.lower() == a_ded.lower():
-                              default_val = opt
-                              break
-                      st.session_state[key] = default_val
+         st.subheader("Deduction Mapping")
 
-              
-              for a_ded in sorted(adp_deductions):
-                  col_a, col_b = st.columns([1, 1])
-                  with col_a:
-                       st.write(a_ded)
-                  with col_b:
-                       key = f"map_adp_{a_ded}"
-                       current_val = st.session_state.get(key, "— Ignore / Skip —")
-                       
-                       available_options = ["— Ignore / Skip —"] + sorted(uzio_deductions)
-                               
-                       selected = st.selectbox(
-                           f"Map for {a_ded}", 
-                           available_options,
-                           key=key,
-                           label_visibility="collapsed"
+         adp_deductions = get_unique_adp_deductions_from_excel(a_file)
+
+         try:
+             ui_mapping, mrep = load_deduction_mapping(m_file)
+         except Exception as e:
+             st.error(str(e))
+             ui_mapping, mrep = {}, None
+
+         if mrep is not None:
+             if not ui_mapping:
+                  st.error("The mapping file has no usable rows — every row is missing "
+                           "its Uzio deduction name.")
+             else:
+                  st.success(f"Loaded {len(mrep['pairs'])} mapped deduction(s) from "
+                             f"{m_file.name}.")
+
+                  # The audit skips an unmapped deduction with a bare `continue`,
+                  # so anything the mapping cannot answer has to be shown here or
+                  # it disappears from the comparison with no trace.
+                  unmapped = unmapped_source_deductions(adp_deductions, ui_mapping)
+                  if unmapped:
+                       st.warning(
+                           f"{len(unmapped)} deduction(s) in the ADP file are not in the "
+                           "mapping and will be EXCLUDED from the audit:"
                        )
-                       if selected != "— Ignore / Skip —":
-                            ui_mapping[a_ded] = selected
-              
-              st.markdown("---")
-              if st.button("Run Audit", type="primary"):
-                  with st.spinner("Processing..."):
-                      try:
-                          u_file.seek(0)
-                          a_file.seek(0)
-                          report_data, error_msg, _ = run_audit(u_file, a_file, ui_mapping)
+                       st.write(", ".join(unmapped))
+
+                  if mrep["blank_target"]:
+                       st.info(
+                           f"{len(mrep['blank_target'])} row(s) in the mapping have no Uzio "
+                           "deduction (the setup helper leaves garnishments, child support "
+                           "and tax liens unassigned) — also excluded: "
+                           + ", ".join(mrep["blank_target"])
+                       )
+
+                  if mrep["conflicts"]:
+                       st.warning(
+                           "The mapping points the same source deduction at two different "
+                           "Uzio deductions; the first was kept: "
+                           + "; ".join(f"{k}: kept '{a}', ignored '{b}'"
+                                       for k, a, b in mrep["conflicts"])
+                       )
+
+                  with st.expander(f"View the {len(mrep['pairs'])} mapped deduction(s)"):
+                       st.dataframe(
+                           pd.DataFrame(mrep["pairs"],
+                                        columns=["ADP Deduction", "ADP Code", "Uzio Deduction"]),
+                           use_container_width=True, hide_index=True,
+                       )
+
+                  st.markdown("---")
+                  if st.button("Run Audit", type="primary"):
+                      with st.spinner("Processing..."):
+                          try:
+                              u_file.seek(0)
+                              a_file.seek(0)
+                              report_data, error_msg, _ = run_audit(u_file, a_file, ui_mapping)
                           
-                          if error_msg:
-                              st.error(error_msg)
-                          else:
-                              st.success("Audit Completed Successfully!")
+                              if error_msg:
+                                  st.error(error_msg)
+                              else:
+                                  st.success("Audit Completed Successfully!")
                               
-                              timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
-                              filename = f"{client_name}_Uzio_ADP_Deduction_Audit_Report_{timestamp}.xlsx"
+                                  timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
+                                  filename = f"{client_name}_Uzio_ADP_Deduction_Audit_Report_{timestamp}.xlsx"
                               
-                              st.download_button(
-                                  label="Download Audit Report",
-                                  data=report_data,
-                                  file_name=filename,
-                                  mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                              )
-                      except Exception as e:
-                          st.error(f"An unexpected error occurred: {e}")
-                          st.exception(e)
+                                  st.download_button(
+                                      label="Download Audit Report",
+                                      data=report_data,
+                                      file_name=filename,
+                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                  )
+                          except Exception as e:
+                              st.error(f"An unexpected error occurred: {e}")
+                              st.exception(e)
 
 if __name__ == "__main__":
     st.set_page_config(page_title="ADP Deduction Audit", layout="wide")

@@ -1,6 +1,10 @@
 import streamlit as st
 import pandas as pd
 import io
+
+from utils.deduction_mapping import (
+    load_deduction_mapping, unmapped_source_deductions, REQUIRED_COLUMNS,
+)
 import re
 from datetime import date
 from utils.audit_utils import norm_col, clean_money_val
@@ -287,6 +291,9 @@ def run_audit(file_uzio, file_paycom, UI_MAPPING):
              
     return output.getvalue(), None, results
 
+# Kept for reference only: this used to populate the Uzio side of the manual
+# mapping dropdowns, which the Employee Deduction Mapping upload replaced.
+# Nothing calls it now.
 def get_unique_uzio_deductions(file):
     try:
         # Seek to start
@@ -335,7 +342,8 @@ def render_ui():
     **Instructions**:
     1. Upload **Uzio Deduction Export** (Excel or CSV).
     2. Upload **Paycom Deduction Export** (Excel or CSV).
-    3. Map the extracted Paycom deductions to Uzio deductions, then click **Run Comparison**.
+    3. Upload the **Employee Deduction Mapping** CSV (same four columns the ADP
+       Prior Payroll Setup Helper emits), then click **Run Comparison**.
     """)
 
     
@@ -345,84 +353,86 @@ def render_ui():
     with col2:
         p_file = st.file_uploader("Paycom Deduction File", type=["xlsx", "xls", "csv"], key="pd_p")
 
+    m_file = st.file_uploader(
+        "Upload Employee Deduction Mapping",
+        type=["csv", "xlsx", "xls"], key="pd_mapping",
+        help="Four columns: " + ", ".join(REQUIRED_COLUMNS) + ". The ADP setup "
+             "helper emits this file; for Paycom it has to be supplied.",
+    )
+
         
     client_name = st.text_input("Client Name", value="Client", key="paycom_deduction_client")
     
-    if u_file and p_file:
+    if u_file and p_file and m_file:
          st.markdown("---")
-         st.subheader("Map Deductions")
-         
-         uzio_deductions = get_unique_uzio_deductions(u_file)
-         paycom_deductions = get_unique_paycom_deductions(p_file)
-         
-         if not uzio_deductions:
-              st.error("Could not find any 'Deduction Name' values in the Uzio file.")
-         elif not paycom_deductions:
-              st.error("Could not find any Deduction Descriptions or Codes in the Paycom file.")
-         else:
-              st.markdown("Please map the Paycom Deductions to the corresponding Uzio Deductions below:")
-              
-              ui_mapping = {}
-              
-              # Initialize session state for mappings
-              for p_ded in paycom_deductions:
-                  key = f"map_p_{p_ded}"
-                  if key not in st.session_state:
-                      default_val = "— Ignore / Skip —"
-                      for opt in uzio_deductions:
-                          if opt.lower() == p_ded.lower():
-                              default_val = opt
-                              break
-                      st.session_state[key] = default_val
+         st.subheader("Deduction Mapping")
 
-              # Collect all currently selected values
-              selected_values = set()
-              for p_ded in paycom_deductions:
-                  val = st.session_state.get(f"map_p_{p_ded}", "— Ignore / Skip —")
-                  if val != "— Ignore / Skip —":
-                      selected_values.add(val)
-              
-              # Render mapping UI
-              for p_ded in sorted(paycom_deductions):
-                  col_a, col_b = st.columns([1, 1])
-                  with col_a:
-                       st.write(p_ded)
-                  with col_b:
-                       key = f"map_p_{p_ded}"
-                       current_val = st.session_state.get(key, "— Ignore / Skip —")
-                       
-                       available_options = ["— Ignore / Skip —"]
-                       for opt in sorted(uzio_deductions):
-                           if opt == current_val or opt not in selected_values:
-                               available_options.append(opt)
-                               
-                       selected = st.selectbox(
-                           f"Map for {p_ded}", 
-                           available_options,
-                           key=key,
-                           label_visibility="collapsed"
+         paycom_deductions = get_unique_paycom_deductions(p_file)
+
+         try:
+             ui_mapping, mrep = load_deduction_mapping(m_file)
+         except Exception as e:
+             st.error(str(e))
+             ui_mapping, mrep = {}, None
+
+         if mrep is not None:
+             if not ui_mapping:
+                  st.error("The mapping file has no usable rows — every row is missing "
+                           "its Uzio deduction name.")
+             else:
+                  st.success(f"Loaded {len(mrep['pairs'])} mapped deduction(s) from "
+                             f"{m_file.name}.")
+
+                  # An unmapped deduction is skipped by the audit with a bare
+                  # `continue`, so it has to be named here or it silently drops
+                  # out of the comparison.
+                  unmapped = unmapped_source_deductions(paycom_deductions, ui_mapping)
+                  if unmapped:
+                       st.warning(
+                           f"{len(unmapped)} deduction(s) in the Paycom file are not in the "
+                           "mapping and will be EXCLUDED from the audit:"
                        )
-                       if selected != "— Ignore / Skip —":
-                            ui_mapping[p_ded] = selected
-              
-              st.markdown("---")
-              if st.button("Run Comparison", type="primary"):
-                  with st.spinner("Processing..."):
-                      u_file.seek(0)
-                      p_file.seek(0)
-                      report, err, _ = run_audit(u_file, p_file, ui_mapping)
+                       st.write(", ".join(unmapped))
+
+                  if mrep["blank_target"]:
+                       st.info(
+                           f"{len(mrep['blank_target'])} row(s) in the mapping have no Uzio "
+                           "deduction — also excluded: " + ", ".join(mrep["blank_target"])
+                       )
+
+                  if mrep["conflicts"]:
+                       st.warning(
+                           "The mapping points the same source deduction at two different "
+                           "Uzio deductions; the first was kept: "
+                           + "; ".join(f"{k}: kept '{a}', ignored '{b}'"
+                                       for k, a, b in mrep["conflicts"])
+                       )
+
+                  with st.expander(f"View the {len(mrep['pairs'])} mapped deduction(s)"):
+                       st.dataframe(
+                           pd.DataFrame(mrep["pairs"],
+                                        columns=["Paycom Deduction", "Paycom Code", "Uzio Deduction"]),
+                           use_container_width=True, hide_index=True,
+                       )
+
+                  st.markdown("---")
+                  if st.button("Run Comparison", type="primary"):
+                      with st.spinner("Processing..."):
+                          u_file.seek(0)
+                          p_file.seek(0)
+                          report, err, _ = run_audit(u_file, p_file, ui_mapping)
                       
-                      if err:
-                          st.error(err)
-                      else:
-                          st.success("Audit Complete!")
-                          timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
-                          filename = f"{client_name}_Uzio_Paycom_Deduction_Audit_Report_{timestamp}.xlsx"
+                          if err:
+                              st.error(err)
+                          else:
+                              st.success("Audit Complete!")
+                              timestamp = pd.Timestamp.now().strftime('%d_%m_%Y_%H%M')
+                              filename = f"{client_name}_Uzio_Paycom_Deduction_Audit_Report_{timestamp}.xlsx"
           
-                          st.download_button(
-                              "Download Report",
-                              data=report,
-                              file_name=filename,
-                              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                          )
+                              st.download_button(
+                                  "Download Report",
+                                  data=report,
+                                  file_name=filename,
+                                  mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                              )
 

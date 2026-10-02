@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.file_io import read_table
 import pandas as pd
 import io
 import re
@@ -86,7 +87,7 @@ def compute_audit_dataframes(file_uzio, file_adp):
     DataFrames into the chief workbook. Logic must stay identical to run_audit."""
     # 1. Load Data
     # Uzio: Header=1 based on inspection
-    df_uzio = pd.read_excel(file_uzio, header=1)
+    df_uzio = read_table(file_uzio, header=1)
     if getattr(file_adp, "name", "").lower().endswith(".csv"):
         try:
             df_adp = pd.read_csv(file_adp)
@@ -304,7 +305,7 @@ def render_ui():
     
     col1, col2 = st.columns(2)
     with col1:
-        f_uzio = st.file_uploader("Uzio Emergency Input", type=["xlsx"], key="ec_u")
+        f_uzio = st.file_uploader("Uzio Emergency Input", type=["xlsx", "xls", "csv"], key="ec_u")
     with col2:
         f_adp = st.file_uploader("ADP Emergency Input", type=["xlsx"], key="ec_a")
         

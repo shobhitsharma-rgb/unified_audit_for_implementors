@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.file_io import read_table
 import pandas as pd
 import io
 import re
@@ -95,7 +96,7 @@ def _compare_val(field, u_val, p_val):
 
 def run_audit(file_uzio, file_paycom):
     # 1. Load Uzio Data (Same layout as ADP tool)
-    df_uzio = pd.read_excel(file_uzio, header=1)
+    df_uzio = read_table(file_uzio, header=1)
     
     # 2. Load Paycom Data (Census file)
     try:
@@ -345,7 +346,7 @@ def render_ui():
 
     col1, col2 = st.columns(2)
     with col1:
-        f_uzio = st.file_uploader("Uzio Emergency Export", type=["xlsx"], key="pec_u")
+        f_uzio = st.file_uploader("Uzio Emergency Export", type=["xlsx", "xls", "csv"], key="pec_u")
     with col2:
         f_pay = st.file_uploader("Paycom Census Export", type=["xlsx", "csv"], key="pec_p")
 

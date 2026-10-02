@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.file_io import read_table
 import pandas as pd
 import numpy as np
 import os
@@ -66,7 +67,7 @@ def render_ui():
         st.markdown("### 📂 File Uploads")
         col1, col2 = st.columns([2, 1])
         with col1:
-            uploaded_payroll = st.file_uploader("ADP Prior Payroll (.xlsx)", type=["xlsx"])
+            uploaded_payroll = st.file_uploader("ADP Prior Payroll (.xlsx or .csv)", type=["xlsx", "xls", "csv"])
         with col2:
             if df_state_global is not None:
                 st.success(f"✅ State Tax Reference loaded  \n`state_tax_code.csv`  \n{len(df_state_global):,} rows")
@@ -93,7 +94,7 @@ def render_ui():
         if not uploaded_payroll:
             st.markdown('<div class="card" style="text-align:center;padding:3rem;"><div style="font-size:3rem">📂</div><div style="color:#8892a4;font-family:IBM Plex Mono,monospace;">Upload an ADP Prior Payroll .xlsx file to get started</div></div>', unsafe_allow_html=True)
         else:
-            df = pd.read_excel(uploaded_payroll)
+            df = read_table(uploaded_payroll)
             all_cols     = list(df.columns)
             hours_cols   = [c for c in all_cols if 'ADDITIONAL HOURS'    in c.upper()]
             earning_cols = [c for c in all_cols if 'ADDITIONAL EARNINGS' in c.upper()]
@@ -217,7 +218,7 @@ def render_ui():
         elif df_state_global is None:
             st.error("state_tax_code.csv not found. Place it in the same folder as adp_earnings_analyzer.py and restart the app.")
         else:
-            df_pay   = pd.read_excel(uploaded_payroll)
+            df_pay   = read_table(uploaded_payroll)
             df_state = df_state_global
 
             all_cols = list(df_pay.columns)
@@ -413,7 +414,7 @@ def render_ui():
         if not uploaded_payroll:
             st.markdown('<div class="card" style="text-align:center;padding:3rem;"><div style="font-size:3rem">💸</div><div style="color:#8892a4;font-family:IBM Plex Mono,monospace;">Upload an ADP Prior Payroll .xlsx file in the sidebar</div></div>', unsafe_allow_html=True)
         else:
-            df_ded = pd.read_excel(uploaded_payroll)
+            df_ded = read_table(uploaded_payroll)
             all_cols_ded = list(df_ded.columns)
 
             # ── Identify columns ─────────────────────────────────────────────────
