@@ -141,6 +141,7 @@ with st.sidebar:
         st.markdown('<div class="provider-header">Universal Tools</div>', unsafe_allow_html=True)
         tool_option = st.radio("Select Universal Tool", [
             "Selective Employee Extractor",
+            "Employee Profile Change Report",
             "Paycom - Consolidated Audit",
             "ADP - Consolidated Audit"
         ], index=0, label_visibility="collapsed")
@@ -281,6 +282,11 @@ elif tool_option == "Selective Employee Extractor":
     from apps.common import employee_extractor
     importlib.reload(employee_extractor)
     employee_extractor.render_employee_extractor()
+
+elif tool_option == "Employee Profile Change Report":
+    from apps.common import employee_change_report
+    importlib.reload(employee_change_report)
+    employee_change_report.render_ui()
 
 elif tool_option == "Paycom - Consolidated Audit":
     from apps.common import paycom_combined_audit
