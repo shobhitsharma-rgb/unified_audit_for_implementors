@@ -142,7 +142,7 @@ def _selection_table(matches):
 def _versions_table(versions):
     return pd.DataFrame([{
         "Version": cr.VERSION_STR + str(i + 1),
-        "Who Changed": cr.person_label(v.get("created_by")),
+        "Who Changed": cr.who_changed(v),
         "Modified On": cr.modified_on(v.get("created_date")),
         "Source of Change": cr.SOURCE.get(str(v.get("source") or ""), str(v.get("source") or "")),
         "IP Address": v.get("ip_address") or "",
@@ -243,6 +243,11 @@ def render_ui():
             "- **Work Schedule** and the **Family (dependents)** section need lookups the "
             "reporting endpoint does not expose, so Work Schedule stays blank and the Family "
             "section is not written.\n"
+            "- **Original DOH** is the one cell that is deliberately *not* the same as "
+            "Uzio's export. Uzio's own report leaves it blank for everyone â€” its "
+            "`getOriginalDOHString()` checks the formatted string instead of the date it "
+            "is about to format, so the value never gets written. This tool shows the "
+            "date the history row actually holds.\n"
             "- **Union Classification** is left out, exactly as Uzio leaves it out for an "
             "Amazon exchange — unless a version actually carries a value, in which case the "
             "row is written so nothing is hidden.")

@@ -48,6 +48,10 @@ TERMINATION = {"DEATH": "Death", "RETIREMENT": "Retirement",
                "QUIT": "Voluntary Termination of Employment",
                "FIRED": "Involuntary Termination of Employment",
                "TRANSFER": "Transfer", "OTHER": "Other"}
+# populateWhoChanged's fallback when a login carries no role: Uzio prints the user
+# type, not the role name.
+USER_TYPE = {"EMPLOYEE": "EE", "EMPLOYER": "ER", "BROKER": "BR", "SUBBROKER": "BR",
+             "ADMIN": "CSR", "BROKERAGENCY": "BR"}
 SOURCE = {"USER_INTERFACE": "User Interface", "CENSUS": "Census Template",
           "ENROLLMENT": "Enrollment Update", "PAYROLL_INTEGRATION": "Payroll Integration"}
 
@@ -201,6 +205,11 @@ def person_label(email: str) -> str:
     return f"{email} (CSR)"
 
 
+def who_changed(row: dict) -> str:
+    """The "Who Changed" line, from the user tables when they could be read."""
+    return row.get("who_changed") or person_label(row.get("created_by"))
+
+
 def effective_date(row: dict, key: str) -> str:
     """The date Uzio appends for `key`.
 
@@ -311,7 +320,7 @@ class _Sheet:
             col = self.column(i)
             lines = [
                 "Version: " + VERSION_STR + str(version["_number"]),
-                "Who Changed: " + person_label(version.get("created_by")),
+                "Who Changed: " + who_changed(version),
                 "Modified On: " + modified_on(version.get("created_date")),
                 "IP Address: " + (version.get("ip_address") or ""),
                 "Source of Change: " + SOURCE.get(str(version.get("source") or ""),
@@ -517,6 +526,59 @@ def find_employees(token: str, feins=None, ids=None, host: str = None) -> list:
     return rows
 
 
+def resolve_users(token: str, logins, host: str = None) -> dict:
+    """{login -> "Tobias Conner (Employer Administrator)"} for the people who made the changes.
+
+    `employee_history.created_by` holds whatever the account signs in with: a CSR's
+    email, or a bare user identifier for a client login â€” which is why that column
+    alone shows a UUID. Uzio resolves it through the user tables, and so does this:
+    the profile's name, plus the role names for an employer login or the user type
+    for anyone else, exactly as populateWhoChanged builds it.
+
+    Where that user has more than one profile Uzio takes an unordered set's first
+    element; this takes the oldest profile, which is the one its export showed.
+    """
+    from utils import neuronops_client as ops
+
+    wanted = {str(l).strip() for l in logins if l and str(l).strip() not in ("System", "SCRIPT")}
+    quoted = ops.sql_in_list(wanted)
+    if not quoted:
+        return {}
+    rows = ops.query(token, "select u.username, u.user_identifier, p.id as profile_id, "
+                     "p.user_type, p.first_name, p.middle_name, p.last_name, "
+                     "r.name as role_name from user_data u join user_profile p "
+                     "on p.user_id = u.id and p.deleted = 0 "
+                     "left join USER_ROLE_MAPPING m on m.user_profile_id = p.id and m.deleted = 0 "
+                     "left join USER_ROLES r on r.id = m.role_id "
+                     f"where u.username in ({quoted}) or u.user_identifier in ({quoted})",
+                     **({"host": host} if host else {}))
+
+    profiles = {}
+    for row in rows:
+        for key in (row.get("username"), row.get("user_identifier")):
+            if not key or key not in wanted:
+                continue
+            profile = profiles.setdefault((key, row.get("profile_id")),
+                                          {"row": row, "roles": []})
+            if row.get("role_name") and row["role_name"] not in profile["roles"]:
+                profile["roles"].append(row["role_name"])
+
+    labels = {}
+    for (key, profile_id), profile in sorted(profiles.items(), key=lambda kv: kv[0][1] or 0):
+        if key in labels:                      # the oldest profile wins
+            continue
+        row, roles = profile["row"], profile["roles"]
+        name = " ".join(part for part in (row.get("first_name"), row.get("middle_name"),
+                                          row.get("last_name")) if part)
+        user_type = str(row.get("user_type") or "")
+        if user_type == "EMPLOYER" and roles:
+            suffix = ",".join(roles)
+        else:
+            suffix = USER_TYPE.get(user_type, user_type)
+        labels[key] = f"{name} ({suffix})" if name and suffix else name or key
+    return labels
+
+
 def fetch_versions(token: str, employee_code: str, host: str = None) -> list:
     """Every history row for one employee, oldest first, with the lookups resolved."""
     from utils import neuronops_client as ops
@@ -542,7 +604,13 @@ def fetch_versions(token: str, employee_code: str, host: str = None) -> list:
                              f"where employee_code in ({managers})", **kwargs):
             full_names[row.get("employee_code")] = row.get("full_name")
 
+    try:
+        people = resolve_users(token, {r.get("created_by") for r in rows}, host=host)
+    except ops.NeuronOpsError:
+        people = {}                            # fall back to the login itself
+
     for row in rows:
+        row["who_changed"] = people.get(str(row.get("created_by") or "").strip(), "")
         row["pay_group_name"] = names.get(row.get("pay_group_identifier")) or ""
         row["reporting_to_name"] = full_names.get(row.get("reporting_to")) or ""
         # The work-week-schedule lookup is not exposed by the query endpoint, so this
