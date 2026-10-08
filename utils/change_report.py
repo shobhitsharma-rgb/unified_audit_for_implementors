@@ -422,31 +422,97 @@ def report_filename(when: datetime = None, employee: str = "") -> str:
 HISTORY_SOURCES = "employee_history / emergency_contact_history"
 
 
-def find_employees(token: str, ids=None, names=None, host: str = None) -> list:
-    """Employees matching any of the given Employee IDs or names.
+def _by_historical_id(token, ids, rows, companies, kwargs) -> list:
+    """Employees whose Employee ID USED to be one of `ids` but has since changed.
 
-    Deliberately a search and not a resolver: the same Employee ID exists in more
-    than one company, so the caller shows these rows and lets the user pick rather
-    than guessing which one was meant.
+    A census carries the ID of its day; Uzio replaces it later (1020 became
+    BH0KS5HPZ). Searching only the current code finds nothing and looks like the
+    employee is absent, so any ID that matched nothing is looked up again in the
+    history, within the same company.
     """
     from utils import neuronops_client as ops
+
+    seen = {str(r.get("ext_employee_code")) for r in rows}
+    missing = ops.sql_in_list([i for i in ids if i not in seen])
+    eins = ops.sql_in_list({c.get("ein") for c in companies if c.get("ein")})
+    if not missing or not eins:
+        return []
+    history = ops.query(token, "select distinct employee_code, ext_employee_code from "
+                        f"employee_history where ext_employee_code in ({missing}) "
+                        f"and ein in ({eins}) and deleted = 0", **kwargs)
+    known = {r.get("employee_code") for r in rows}
+    was = {h.get("employee_code"): h.get("ext_employee_code")
+           for h in history if h.get("employee_code") not in known}
+    if not was:
+        return []
+    codes = ops.sql_in_list(was)
+    found = ops.query(token, "select employee_code, ext_employee_code, full_name, status, "
+                      "employer_organization_id, date_of_hire, date_of_termination "
+                      f"from employee where employee_code in ({codes}) and deleted = 0", **kwargs)
+    for row in found:
+        row["found_via"] = f"was {was.get(row.get('employee_code'))}"
+    return found
+
+
+def find_companies(token: str, feins, host: str = None) -> list:
+    """The companies behind one or more 9-digit FEINs."""
+    from utils import neuronops_client as ops
+
+    quoted = ops.sql_in_list(feins)
+    if not quoted:
+        return []
+    return ops.query(token, "select id, ein, fein, company_name, client_code from "
+                     f"employer_organization where fein in ({quoted}) and deleted = 0",
+                     **({"host": host} if host else {}))
+
+
+def find_employees(token: str, feins=None, ids=None, host: str = None) -> list:
+    """Employees of the given company (FEIN), optionally narrowed by Employee ID.
+
+    The FEIN is what keeps this honest: the same Employee ID exists in more than one
+    company, so without it a search for "1020" returns strangers. With a FEIN and no
+    other filter, every employee of that company comes back for the caller to pick
+    from. Without a FEIN the search still runs, but each row carries its company name
+    so a duplicate is visible rather than silently chosen.
+    """
+    from utils import neuronops_client as ops
+
+    kwargs = {"host": host} if host else {}
+    scope = ""
+    if feins:
+        companies = find_companies(token, feins, host=host)
+        if not companies:
+            return []
+        org_ids = ",".join(str(c["id"]) for c in companies if str(c.get("id", "")).isdigit())
+        scope = f"employer_organization_id in ({org_ids})"
 
     clauses = []
     if ids:
         quoted = ops.sql_in_list(ids)
         if quoted:
             clauses.append(f"ext_employee_code in ({quoted})")
-    for name in names or []:
-        safe = re.sub(r"[^A-Za-z0-9 .'-]", "", str(name)).strip()
-        if len(safe) >= 2:
-            clauses.append(f"full_name like '%{safe}%'")
-    if not clauses:
+
+    if not scope and not clauses:
         return []
-    sql = ("select employee_code, ext_employee_code, full_name, status, ein, "
-           "date_of_hire, date_of_termination, created_date from employee where ("
-           + " or ".join(clauses) + ") and deleted = 0 order by full_name")
-    rows = ops.query(token, sql, **({"host": host} if host else {}))
+    where = " and ".join(part for part in (scope, "(" + " or ".join(clauses) + ")" if clauses else "") if part)
+    rows = ops.query(token, "select employee_code, ext_employee_code, full_name, status, "
+                     "employer_organization_id, date_of_hire, date_of_termination "
+                     f"from employee where {where} and deleted = 0 order by full_name", **kwargs)
+
+    if ids and feins:
+        rows += _by_historical_id(token, ids, rows, companies, kwargs)
+
+    orgs = {str(r.get("employer_organization_id")) for r in rows if r.get("employer_organization_id")}
+    companies = {}
+    if orgs:
+        listed = ",".join(o for o in orgs if o.isdigit())
+        for row in ops.query(token, "select id, fein, company_name from employer_organization "
+                             f"where id in ({listed})", **kwargs):
+            companies[row.get("id")] = row
     for row in rows:
+        company = companies.get(row.get("employer_organization_id")) or {}
+        row["company_name"] = company.get("company_name") or ""
+        row["fein"] = company.get("fein") or ""
         row["status_label"] = cell_value(row, "status", "status")
     return rows
 

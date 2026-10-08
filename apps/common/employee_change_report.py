@@ -57,36 +57,56 @@ def _sign_in():
 
 def _find_employees(token, host):
     render_premium_header("2. Find the employees",
-                          "Search by the Employee ID you see in the census, by name, or both. "
-                          "The same Employee ID can exist in more than one company, so pick the "
-                          "right rows before generating.")
+                          "Start with the company's FEIN — the same Employee ID exists in "
+                          "other companies, so without it you get strangers back. Leave the "
+                          "Employee IDs box empty to list everyone in that company.")
     with st.form("ecr_search"):
-        col1, col2 = st.columns(2)
-        ids = col1.text_area("Employee IDs", height=110,
-                             placeholder="1020, BH0KS5HPZ\n8OSU7337G",
-                             help="Comma or newline separated.")
-        names = col2.text_area("Or employee names", height=110,
-                               placeholder="Daniel Eiskina\nHasan Ahmed")
+        col1, col2 = st.columns([1, 2])
+        fein = col1.text_input("Company FEIN", placeholder="863131339",
+                               help="The 9-digit federal EIN. More than one is allowed, "
+                                    "comma separated.")
+        ids = col2.text_area("Employee IDs (optional)", height=110,
+                             placeholder="1020, BH0KS5HPZ' + BS + 'n8OSU7337G",
+                             help="Comma or newline separated. An ID Uzio has since "
+                                  "replaced still finds the employee.")
         searched = st.form_submit_button("Search", type="primary")
 
-    if searched:
-        id_list = [p.strip() for p in ids.replace("\n", ",").split(",") if p.strip()]
-        name_list = [p.strip() for p in names.splitlines() if p.strip()]
-        if not id_list and not name_list:
-            st.warning("Enter at least one Employee ID or name.")
+    if not searched:
+        return
+    fein_list = [p.strip() for p in fein.replace("' + BS + 'n", ",").split(",") if p.strip()]
+    id_list = [p.strip() for p in ids.replace("' + BS + 'n", ",").split(",") if p.strip()]
+    if not fein_list and not id_list:
+        st.warning("Enter the company FEIN, or at least one Employee ID.")
+        return
+    if not fein_list:
+        st.info("No FEIN given, so this searches across every company. Check the Company "
+                "column before you generate.")
+
+    with st.spinner("Searching…"):
+        try:
+            if fein_list:
+                companies = cr.find_companies(token, fein_list, host=host)
+                found = {str(c.get("fein")) for c in companies}
+                unknown = [f for f in fein_list if f not in found]
+                if unknown:
+                    st.error("No company in Uzio has FEIN " + ", ".join(unknown) + ".")
+                if not companies:
+                    st.session_state[MATCHES_KEY] = []
+                    return
+                st.caption("Company: " + " · ".join(
+                    f"**{c.get('company_name')}** ({c.get('fein')})" for c in companies))
+            st.session_state[MATCHES_KEY] = cr.find_employees(
+                token, feins=fein_list, ids=id_list, host=host)
+        except ops.NeuronOpsError as e:
+            st.error(str(e))
             return
-        with st.spinner("Searching…"):
-            try:
-                st.session_state[MATCHES_KEY] = cr.find_employees(
-                    token, ids=id_list, names=name_list, host=host)
-            except ops.NeuronOpsError as e:
-                st.error(str(e))
-                return
-        missing = [i for i in id_list
-                   if not any(str(m.get("ext_employee_code")) == i
-                              for m in st.session_state[MATCHES_KEY])]
-        if missing:
-            st.warning("No employee found for: " + ", ".join(missing))
+
+    matched = {str(m.get("ext_employee_code")) for m in st.session_state[MATCHES_KEY]}
+    matched |= {str(m.get("found_via", "")).replace("was ", "")
+                for m in st.session_state[MATCHES_KEY]}
+    missing = [i for i in id_list if i not in matched]
+    if missing:
+        st.warning("No employee found for: " + ", ".join(missing))
 
 
 def _selection_table(matches):
@@ -94,10 +114,12 @@ def _selection_table(matches):
         "Generate": False,
         "Employee Name": m.get("full_name") or "",
         "Employee ID": m.get("ext_employee_code") or "",
+        "Matched on": m.get("found_via") or "",
         "Status": m.get("status_label") or "",
         "Date of Hire": cr.cell_value(m, "date", "date_of_hire"),
         "Termination Date": cr.cell_value(m, "date", "date_of_termination"),
-        "Company (EIN)": m.get("ein") or "",
+        "Company": m.get("company_name") or "",
+        "FEIN": m.get("fein") or "",
         "_code": m.get("employee_code"),
     } for m in matches])
 
@@ -106,9 +128,12 @@ def _selection_table(matches):
         column_config={
             "Generate": st.column_config.CheckboxColumn(required=True),
             "_code": None,
-            "Company (EIN)": st.column_config.TextColumn(
-                help="Uzio's internal company id — use it to tell apart two employees "
-                     "who share an Employee ID."),
+            "Matched on": st.column_config.TextColumn(
+                help="Filled in when the Employee ID you searched for is an older one that "
+                     "Uzio has since replaced."),
+            "Company": st.column_config.TextColumn(
+                help="Which company this employee belongs to — the way to tell apart two "
+                     "employees who share an Employee ID."),
         },
         disabled=[c for c in frame.columns if c != "Generate"])
     return edited[edited["Generate"]]["_code"].tolist()
