@@ -14,7 +14,15 @@ both surfaced to the user rather than papered over:
 * SSN, Hourly Pay Rate, Annual Salary, Bonus and Salary Commissions are encrypted
   at rest. Uzio's own report decrypts them inside the application; the query
   endpoint hands back the ciphertext, so those cells read "(encrypted)". The
-  effective-date suffix next to them is real and is still shown.
+  effective-date suffix next to them is real and is still shown, and for a pay
+  field that suffix is itself the reliable change signal: the rate that moved on
+  20 Sep reads "(Effective Date - 09/20/2026)" from that version on.
+
+  Comparing the stored ciphertext instead was tried and rejected. It is not stable
+  per value: one employee's $22.50 was stored as three different byte strings
+  across eleven versions (the amount is formatted before it is encrypted), so the
+  comparison reported changes in versions where the rate had not moved. Identical
+  bytes do prove a value did not change; differing bytes prove nothing.
 * Work Schedule needs a work-week-schedule lookup, and the Family (dependents)
   section needs the family-member history table. Neither is exposed by the query
   endpoint, so Work Schedule stays blank and the Family section is not emitted.
@@ -530,7 +538,7 @@ def resolve_users(token: str, logins, host: str = None) -> dict:
     """{login -> "Tobias Conner (Employer Administrator)"} for the people who made the changes.
 
     `employee_history.created_by` holds whatever the account signs in with: a CSR's
-    email, or a bare user identifier for a client login â€” which is why that column
+    email, or a bare user identifier for a client login — which is why that column
     alone shows a UUID. Uzio resolves it through the user tables, and so does this:
     the profile's name, plus the role names for an employer login or the user type
     for anyone else, exactly as populateWhoChanged builds it.

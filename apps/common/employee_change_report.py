@@ -234,17 +234,42 @@ def render_ui():
             st.session_state.pop(key, None)
         st.rerun()
 
+    with st.expander("How to read the report"):
+        st.markdown(
+            "**The sheet is called `Change History`.** Column A is the section, column B the "
+            "field, and then **one column per version of the profile — newest first**. The "
+            "five lines above each version column say which version it is, **who changed it**, "
+            "**when** (UTC), from **which IP**, and **through which channel** — User Interface, "
+            "Census Template, Enrollment Update or Payroll Integration.\n\n"
+            "**Read a row left to right to follow one field through time.** V1 is the oldest "
+            "version — usually the migration itself — and the leftmost column is what the "
+            "profile looks like now.\n\n"
+            "**Rows that are highlighted green changed at some point.** A row whose value is "
+            "the same in every version is left plain, so the highlighted rows are the ones "
+            "worth reading for a delta or an RCA.\n\n"
+            f"**`{cr.ENCRYPTED}` is a value this tool cannot read** — SSN and the pay "
+            "fields are encrypted in the database. For a pay field you can still see *when* "
+            "it changed without the number: the `(Effective Date - …)` beside it moves to the "
+            "date the new amount applies from, in the version where someone changed it. "
+            "Open that employee in Uzio if you need the figure itself.\n\n"
+            "**`(Effective Date - …)` is not the same as the change date.** The change date is "
+            "in the column header — when someone edited the profile. The effective date inside "
+            "the cell is the date the value applies from, which the person editing chose and "
+            "which can be in the past or the future.")
+
     with st.expander("What this report cannot show"):
         st.markdown(
             "- **Employee SSN, Hourly Pay Rate, Annual Salary, Bonus, Salary Commissions** — "
             "these are encrypted at rest. Uzio decrypts them inside the application; the "
             "reporting endpoint returns the encrypted value, so the cell reads "
-            f"`{cr.ENCRYPTED}`. The effective date next to a pay field is real and is shown.\n"
+            f"`{cr.ENCRYPTED}`. The effective date next to a pay field is real and is "
+            "shown — and that date is how you spot a pay change: it moves to the date the "
+            "new rate applies from, in the version where the rate was changed.\n"
             "- **Work Schedule** and the **Family (dependents)** section need lookups the "
             "reporting endpoint does not expose, so Work Schedule stays blank and the Family "
             "section is not written.\n"
             "- **Original DOH** is the one cell that is deliberately *not* the same as "
-            "Uzio's export. Uzio's own report leaves it blank for everyone â€” its "
+            "Uzio's export. Uzio's own report leaves it blank for everyone — its "
             "`getOriginalDOHString()` checks the formatted string instead of the date it "
             "is about to format, so the value never gets written. This tool shows the "
             "date the history row actually holds.\n"
