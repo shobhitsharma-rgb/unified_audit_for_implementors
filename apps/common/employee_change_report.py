@@ -19,6 +19,7 @@ import streamlit as st
 
 from utils import change_report as cr
 from utils import neuronops_client as ops
+from utils.id_input import split_ids
 from utils.ui_components import _callout, render_premium_header
 
 TOKEN_KEY = "ecr_token"
@@ -64,17 +65,18 @@ def _find_employees(token, host):
         col1, col2 = st.columns([1, 2])
         fein = col1.text_input("Company FEIN", placeholder="863131339",
                                help="The 9-digit federal EIN. More than one is allowed, "
-                                    "comma separated.")
+                                    "separated by commas.")
         ids = col2.text_area("Employee IDs (optional)", height=110,
-                             placeholder="1020, BH0KS5HPZ' + BS + 'n8OSU7337G",
-                             help="Comma or newline separated. An ID Uzio has since "
-                                  "replaced still finds the employee.")
+                             placeholder="1020, BH0KS5HPZ\n8OSU7337G",
+                             help="Separate with commas, new lines, semicolons or tabs, "
+                                  "in any mix, so a column pasted from Excel works. An ID "
+                                  "Uzio has since replaced still finds the employee.")
         searched = st.form_submit_button("Search", type="primary")
 
     if not searched:
         return
-    fein_list = [p.strip() for p in fein.replace("' + BS + 'n", ",").split(",") if p.strip()]
-    id_list = [p.strip() for p in ids.replace("' + BS + 'n", ",").split(",") if p.strip()]
+    fein_list = split_ids(fein)
+    id_list = split_ids(ids)
     if not fein_list and not id_list:
         st.warning("Enter the company FEIN, or at least one Employee ID.")
         return
