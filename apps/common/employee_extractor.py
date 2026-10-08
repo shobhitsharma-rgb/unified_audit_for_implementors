@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from utils.audit_utils import check_duplicate_columns, format_datetime_strings, convert_state_to_abbreviation
+from utils.id_input import split_ids
 
 def render_employee_extractor():
     st.title("Selective Employee Extractor (Selective Sync & Sequence)")
@@ -192,10 +193,10 @@ def render_employee_extractor():
             st.error(f"Error reading Reference file: {e}. Ensure it is a valid Uzio Census (xlsx/xlsm) or a CSV with an Employee ID column.")
     
     # Manual Input (Fallback or Hybrid)
-    manual_ids_input = st.text_area("Paste Employee IDs (Comma-separated) - Use this if no reference file or to override", 
-                                   height=100, 
-                                   help="IDs provided here select which employees to extract. Use the sequencing option below to pick the output order when a reference file is present.")
-    manual_ids = [i.strip() for i in manual_ids_input.split(',') if i.strip()] if manual_ids_input.strip() else []
+    manual_ids_input = st.text_area("Paste Employee IDs (comma or one per line) - Use this if no reference file or to override",
+                                   height=100,
+                                   help="Separate with commas, new lines, semicolons or tabs, in any mix, so a column pasted from Excel works. A space does not separate IDs. IDs provided here select which employees to extract. Use the sequencing option below to pick the output order when a reference file is present.")
+    manual_ids = split_ids(manual_ids_input)
 
     if manual_ids and ref_order_ids:
         # Both a reference file AND a manual list are present -- let the user choose the output order.

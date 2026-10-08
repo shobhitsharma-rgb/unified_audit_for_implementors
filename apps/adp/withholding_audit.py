@@ -122,7 +122,11 @@ UZIO_STATE_COL            = "state_code"
 UZIO_SCOPE_COL            = "tax_scope"
 UZIO_MASTER_COL           = "master_tax_type"
 UZIO_EFF_COL              = "effective_date"
-UZIO_STATUS_COL           = "status"
+# The UZIO withholding export names this column `employment_status`. Older
+# hand-built extracts sometimes used a bare `status`. Resolve by candidate list
+# rather than a single literal — a silent miss here defaults every employee to
+# ACTIVE, which hides terminated employees inside the "act on first" sheet.
+UZIO_STATUS_CANDIDATES    = ["employment_status", "status", "employee_status", "employment status"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -651,8 +655,11 @@ def parse_uzio(df: pd.DataFrame) -> UzioPivot:
     status_by = {}
     name_by = {}
     states_by = {}
-    if UZIO_STATUS_COL in df.columns:
-        first_status = df.groupby(id_col)[UZIO_STATUS_COL].first()
+    status_col = _find_col(df.columns, UZIO_STATUS_CANDIDATES)
+    if status_col:
+        # `.first()` skips NaN, so an employee whose first row has a blank
+        # status still resolves from a later row.
+        first_status = df.groupby(id_col)[status_col].first()
         status_by = {k: _clean(v).upper() for k, v in first_status.items()}
     name_cols = [c for c in ["employee_first_name", "employee_last_name"] if c in df.columns]
     if name_cols:
@@ -726,7 +733,14 @@ def parse_adp(df_raw: pd.DataFrame) -> AdpParsed:
         df_dedup = df.copy()
     history["IS_SELECTED_LATEST"] = history.index.isin(df_dedup.index)
 
-    counts = history.groupby(id_col).size()
+    # W-4 history means MORE THAN ONE DISTINCT W-4 effective date — not merely
+    # more than one row. ADP emits an extra row per state tax jurisdiction, so
+    # a multi-state employee (or one carrying a stray `Lived In State Tax Code`
+    # variant) shows 2+ rows that share a single W-4. Counting rows flagged
+    # those as "has W-4 history" and told the user to go verify a revision that
+    # does not exist. `nunique(dropna=True)` yields 0 when no date parsed, so
+    # an undated file flags nobody rather than flagging everybody.
+    counts = history.groupby(id_col)["_eff_date"].nunique(dropna=True)
     multi_ids = set(counts[counts > 1].index)
 
     return AdpParsed(
@@ -1134,7 +1148,7 @@ def run_audit(
         {"Metric": "UZIO employees (total)", "Value": len(uzio.all_emp_ids)},
         {"Metric": "ADP employees (total)", "Value": len(adp.all_emp_ids)},
         {"Metric": "Employees compared (in both)", "Value": len(both_ids)},
-        {"Metric": "Employees with W-4 history (multiple ADP rows)", "Value": len(adp.multi_row_emp_ids)},
+        {"Metric": "Employees with W-4 history (multiple W-4 effective dates)", "Value": len(adp.multi_row_emp_ids)},
         {"Metric": "Mismatches — Total (all categories)", "Value": len(df_mismatches)},
         {"Metric": "Mismatches — Active employees", "Value": len(df_miss_active)},
         {"Metric": "Mismatches — Terminated employees", "Value": len(df_miss_term)},
@@ -1466,7 +1480,10 @@ def render_ui():
     c5.metric("False Positives Filtered", len(result.false_positives_filtered))
     c6.metric("Stale UZIO Records", len(result.stale_uzio))
     c7.metric("Reciprocity Rows", len(result.reciprocity))
-    c8.metric("ADP rows w/ W-4 history", int(len(result.w4_history) - (
+    # Counts rows dropped by the per-employee dedup. Those are NOT all superseded
+    # W-4s — ADP also emits one row per state tax jurisdiction — so this is
+    # labelled as what it measures, not as W-4 history.
+    c8.metric("ADP rows deduped away", int(len(result.w4_history) - (
         result.w4_history["IS_SELECTED_LATEST"].sum() if "IS_SELECTED_LATEST" in result.w4_history.columns else 0
     )))
 
