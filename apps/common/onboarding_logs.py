@@ -317,6 +317,27 @@ def render_ui():
         mark = "  ·  test client" if client.get("is_test_client") else ""
         labels[f"{client['company_name']}  ({fein}){mark}"] = (fein, client["company_name"])
 
+    with st.expander("How to read this"):
+        st.markdown(
+            "- **One line per API, and only its latest run counts.** If Census was run "
+            "eleven times, the line is about the eleventh. An earlier failure that has "
+            "since been re-run is history, not something to fix — it is still there in "
+            "*Every run for this client* at the bottom.\n"
+            "- **Green means every employee in that run went through.** Red says how "
+            "many did not: \"58 of 1618 employees failed\" means 1560 are in Uzio and 58 "
+            "are not.\n"
+            "- **See why** opens the reasons, not the rows. The same reason usually hits "
+            "many employees at once, so it is one line with a count — fix that one thing "
+            "and all of them clear on the next run. The download has every employee if "
+            "you need to work through them.\n"
+            "- **Warnings are not failures.** Those employees went through; Uzio just "
+            "filled something in for them (a blank amount defaulted to 0, say). They sit "
+            "in an expander because they rarely need action.\n"
+            "- **\"Never finished\"** means the run wrote no result at all — it is still "
+            "going, or it died. It is not a pass, and the counts for it are missing "
+            "rather than zero.\n"
+            "- Times are **IST**, and the name beside each line is whoever ran it.")
+
     picked = st.selectbox("Client", list(labels),
                           help="Start typing to search. Every client on the Amazon "
                                "exchange is here.")
