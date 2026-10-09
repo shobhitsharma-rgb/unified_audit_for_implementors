@@ -230,26 +230,25 @@ def _run_detail(token, host, run_id, client_label):
                              mime="text/csv")
 
 
-def _errors_for(token, host, record, client_label):
-    """The errors of one API's latest run — grouped, with the detail tucked away."""
-    rows = obq.query(token, f"select * from {obq.TABLE} where id = {int(record['run'])}",
+def _errors_for(token, host, run_id, api, client_label):
+    """One run of one API: what failed in it, grouped, with the detail tucked away."""
+    rows = obq.query(token, f"select * from {obq.TABLE} where id = {int(run_id)}",
                      host=host)
     if not rows:
-        st.error(f"Run {record['run']} is no longer in the log.")
+        st.error(f"Run {run_id} is no longer in the log.")
         return
     row = rows[0]
     errors = [i for i in obq.issue_rows(row.get("error_messages"))
-              if i["Module"] == record["api"] or not i["Module"]]
+              if i["Module"] == api or not i["Module"]]
     warnings = [i for i in obq.issue_rows(row.get("optional_validations"))
-                if i["Module"] == record["api"] or not i["Module"]]
+                if i["Module"] == api or not i["Module"]]
 
-    st.markdown(f"#### {record['api']} — what went wrong")
-    st.caption(f"{client_label} · run {record['run']} · {record['when']} IST · "
-               f"by {record['by']}")
+    st.caption(f"{client_label} · {api} · run {run_id} · "
+               f"{obq.ist(row.get('start_time'), '%d-%b-%Y %H:%M')} IST · "
+               f"by {(row.get('created_by') or '?').split('@')[0]}")
 
     if not errors:
-        st.info("The API reported failures but wrote no per-employee reasons for them. "
-                "The counts above are all the log holds for this run.")
+        st.info("This run wrote no per-employee failures for this API.")
     else:
         st.markdown(f"**{len(errors)} employees did not go through.** Same reason, one "
                     "line — fix the reason and they all clear.")
@@ -266,7 +265,8 @@ def _errors_for(token, host, record, client_label):
                 pd.DataFrame(obq.group_issues(errors)).to_excel(
                     writer, sheet_name="Grouped", index=False)
         st.download_button(f"Download the full list ({len(frame)} rows)", book.getvalue(),
-                           file_name=f"{record['api']}_run_{record['run']}_issues.xlsx",
+                           file_name=f"{api}_run_{run_id}_issues.xlsx",
+                           key=f"dl_{run_id}_{api}",
                            mime="application/vnd.openxmlformats-officedocument."
                                 "spreadsheetml.sheet", type="primary")
 
@@ -279,6 +279,48 @@ def _errors_for(token, host, record, client_label):
             st.dataframe(pd.DataFrame(obq.group_issues(warnings))[
                 ["Employees", "Reason", "e.g."]], hide_index=True,
                 use_container_width=True)
+
+
+def api_runs(rows, module):
+    """Every run that included `module`, newest first, with that module's own counts.
+
+    Returns the table to show and {label -> (run id, failures)} for the picker. Kept
+    out of the Streamlit function so the status of each attempt can be tested.
+    """
+    table, options = {}, {}
+    for row in rows:                                   # newest first
+        summary = obq.summarize(row)
+        if module not in summary["modules"]:
+            continue
+        failed = int(summary["failed"].get(module) or 0)
+        status = (summary["status"] if not row.get("end_time")
+                  else ("OK" if failed == 0 else f"FAIL {failed}"))
+        when = obq.ist(row.get("start_time"), "%d-%b-%Y %H:%M")
+        by = (row.get("created_by") or "").split("@")[0]
+        table[row.get("id")] = {"Run": row.get("id"), "When (IST)": when, "Ran by": by,
+                                "Total": summary["totals"].get(module),
+                                "OK": summary["passed"].get(module),
+                                "Fail": summary["failed"].get(module), "Status": status}
+        options[f"{row.get('id')} — {when} — by {by} — {status}"] = (row.get("id"), failed)
+    return list(table.values()), options
+
+
+def _api_section(token, host, rows, module, api, client_name):
+    """Every run of ONE API, oldest attempts included, any of them openable.
+
+    An API that was run fifteen times has fifteen stories, not one: which attempt
+    fixed what, and what was still broken in the one before it. The headline card
+    is the latest run; this is all of them.
+    """
+    table, options = api_runs(rows, module)
+    st.markdown(f"#### {api} — {len(table)} run(s)")
+    st.dataframe(pd.DataFrame(table), hide_index=True, use_container_width=True)
+
+    # Land on the newest run that actually failed - that is the one being chased.
+    failed_first = next((i for i, (_, failed) in enumerate(options.values()) if failed), 0)
+    chosen = st.selectbox("Open a run", list(options), index=failed_first,
+                          key=f"pick_{module}")
+    _errors_for(token, host, options[chosen][0], api, client_name)
 
 
 def render_ui():
@@ -319,14 +361,15 @@ def render_ui():
 
     with st.expander("How to read this"):
         st.markdown(
-            "- **One line per API, and only its latest run counts.** If Census was run "
-            "eleven times, the line is about the eleventh. An earlier failure that has "
-            "since been re-run is history, not something to fix — it is still there in "
-            "*Every run for this client* at the bottom.\n"
+            "- **One line per API, showing its latest run** — that is the state the "
+            "client is in now. The button beside it opens **every run of that API**, so "
+            "if Census was run fifteen times you can read each of the fifteen: what "
+            "failed, what the next attempt fixed, and what was still broken.\n"
             "- **Green means every employee in that run went through.** Red says how "
             "many did not: \"58 of 1618 employees failed\" means 1560 are in Uzio and 58 "
             "are not.\n"
-            "- **See why** opens the reasons, not the rows. The same reason usually hits "
+            "- Inside, pick any run and you get **its** reasons, not the rows. The same "
+            "reason usually hits "
             "many employees at once, so it is one line with a count — fix that one thing "
             "and all of them clear on the next run. The download has every employee if "
             "you need to work through them.\n"
@@ -379,16 +422,17 @@ def render_ui():
         else:
             col1.success(f"**{record['api']}** — all {record['total']} went through. "
                          f"Run on {record['when']} IST by {record['by']}.")
-        if record["fail"]:
-            if col2.button("See why", key=f"why_{record['run']}_{record['api']}"):
-                st.session_state[SHOW_KEY] = record
+        label = "See why" if record["runs"] == 1 else f"See all {record['runs']} runs"
+        if col2.button(label, key=f"open_{record['module']}"):
+            st.session_state[SHOW_KEY] = record["module"]
 
     chosen = st.session_state.get(SHOW_KEY)
     if chosen:
         st.divider()
-        with st.spinner("Reading that run…"):
+        api = obq.MODULE_SHORT.get(chosen, chosen)
+        with st.spinner(f"Reading the {api} runs…"):
             try:
-                _errors_for(token, host, chosen, client_name)
+                _api_section(token, host, rows, chosen, api, client_name)
             except obq.OnboardingQueryError as e:
                 st.error(str(e))
 
