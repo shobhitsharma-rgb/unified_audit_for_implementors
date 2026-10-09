@@ -142,6 +142,7 @@ with st.sidebar:
         tool_option = st.radio("Select Universal Tool", [
             "Selective Employee Extractor",
             "Employee Profile Change Report",
+            "Onboarding API Run Logs",
             "Paycom - Consolidated Audit",
             "ADP - Consolidated Audit"
         ], index=0, label_visibility="collapsed")
@@ -282,6 +283,11 @@ elif tool_option == "Selective Employee Extractor":
     from apps.common import employee_extractor
     importlib.reload(employee_extractor)
     employee_extractor.render_employee_extractor()
+
+elif tool_option == "Onboarding API Run Logs":
+    from apps.common import onboarding_logs
+    importlib.reload(onboarding_logs)
+    onboarding_logs.render_ui()
 
 elif tool_option == "Employee Profile Change Report":
     from apps.common import employee_change_report

@@ -22,6 +22,9 @@ from utils import neuronops_client as ops
 from utils.id_input import split_ids
 from utils.ui_components import _callout, render_premium_header
 
+SECONDS_EACH = 3.7          # measured on prod, with the batch cache warm
+BATCH_LIMIT = 300
+
 TOKEN_KEY = "ecr_token"
 USER_KEY = "ecr_user"
 HOST_KEY = "ecr_host"
@@ -158,13 +161,14 @@ def _generate(token, host, codes, matches):
     built = []
     skipped = []
 
+    cache = cr.new_cache()                 # one set of lookups for the whole batch
     progress = st.progress(0.0, text="Reading change history…")
     for n, code in enumerate(codes, start=1):
         employee = by_code.get(code, {})
         label = employee.get("full_name") or employee.get("ext_employee_code") or code
         progress.progress(n / len(codes), text=f"Reading change history — {label}")
         try:
-            workbook, versions = cr.build_for_employee(token, code, host=host)
+            workbook, versions = cr.build_for_employee(token, code, host=host, cache=cache)
         except ops.NeuronOpsError as e:
             st.error(f"{label}: {e}")
             return
@@ -294,5 +298,23 @@ def render_ui():
     if not codes:
         st.info("Tick at least one employee above.")
         return
+
+    # Measured on prod: ~3.7s per employee, the queries rather than the Excel. Size is
+    # never the problem (a report is about 10 KB), so the only real limit is how long
+    # you are willing to keep the page open.
+    minutes = len(codes) * SECONDS_EACH / 60
+    if len(codes) > BATCH_LIMIT:
+        st.error(f"{len(codes)} employees would take around {minutes:.0f} minutes and "
+                 f"keep a connection to production open that whole time. Generate up to "
+                 f"{BATCH_LIMIT} at a time — tick a smaller set, or filter by Employee ID.")
+        return
+    estimate = (f"about {minutes * 60:.0f} seconds" if minutes < 1.5
+                else f"about {minutes:.0f} minutes")
+    if len(codes) > 50:
+        st.warning(f"{len(codes)} employees will take {estimate}. Leave this tab open "
+                   "until the downloads appear.")
+    else:
+        st.caption(f"{len(codes)} selected — {estimate}.")
+
     if st.button(f"Generate {len(codes)} report(s)", type="primary"):
         _generate(token, host, codes, matches)

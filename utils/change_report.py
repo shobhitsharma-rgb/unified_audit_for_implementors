@@ -534,6 +534,18 @@ def find_employees(token: str, feins=None, ids=None, host: str = None) -> list:
     return rows
 
 
+def new_cache() -> dict:
+    """Lookups that repeat across employees of the same company.
+
+    Generating a batch, three of the five queries per employee ask the same thing
+    over and over: the company's pay groups, the handful of managers people report
+    to, and the few logins that made the changes. Held here for one batch, they are
+    asked once. The caller owns it, so nothing is cached between runs and a report
+    is never built from a stale name.
+    """
+    return {"pay_groups": {}, "managers": {}, "users": {}}
+
+
 def resolve_users(token: str, logins, host: str = None) -> dict:
     """{login -> "Tobias Conner (Employer Administrator)"} for the people who made the changes.
 
@@ -584,10 +596,12 @@ def resolve_users(token: str, logins, host: str = None) -> dict:
         else:
             suffix = USER_TYPE.get(user_type, user_type)
         labels[key] = f"{name} ({suffix})" if name and suffix else name or key
-    return labels
+    # Remember the misses too, so a batch does not look them up again for every employee.
+    return {login: labels.get(login, "") for login in wanted}
 
 
-def fetch_versions(token: str, employee_code: str, host: str = None) -> list:
+def fetch_versions(token: str, employee_code: str, host: str = None,
+                   cache: dict = None) -> list:
     """Every history row for one employee, oldest first, with the lookups resolved."""
     from utils import neuronops_client as ops
 
@@ -598,24 +612,31 @@ def fetch_versions(token: str, employee_code: str, host: str = None) -> list:
     if not rows:
         return []
 
-    groups = ops.sql_in_list({r.get("pay_group_identifier") for r in rows if r.get("pay_group_identifier")})
-    names = {}
+    cache = cache if cache is not None else new_cache()
+
+    names = cache["pay_groups"]
+    groups = ops.sql_in_list({r.get("pay_group_identifier") for r in rows
+                              if r.get("pay_group_identifier") and r["pay_group_identifier"] not in names})
     if groups:
         for row in ops.query(token, "select pay_group_identifier, pay_group_name from "
                              f"EMPLOYER_PAY_GROUP where pay_group_identifier in ({groups})", **kwargs):
             names[row.get("pay_group_identifier")] = row.get("pay_group_name")
 
-    managers = ops.sql_in_list({r.get("reporting_to") for r in rows if r.get("reporting_to")})
-    full_names = {}
+    full_names = cache["managers"]
+    managers = ops.sql_in_list({r.get("reporting_to") for r in rows
+                                if r.get("reporting_to") and r["reporting_to"] not in full_names})
     if managers:
         for row in ops.query(token, "select employee_code, full_name from employee "
                              f"where employee_code in ({managers})", **kwargs):
             full_names[row.get("employee_code")] = row.get("full_name")
 
-    try:
-        people = resolve_users(token, {r.get("created_by") for r in rows}, host=host)
-    except ops.NeuronOpsError:
-        people = {}                            # fall back to the login itself
+    people = cache["users"]
+    unknown = {r.get("created_by") for r in rows} - set(people)
+    if unknown:
+        try:
+            people.update(resolve_users(token, unknown, host=host))
+        except ops.NeuronOpsError:
+            pass                               # fall back to the login itself
 
     for row in rows:
         row["who_changed"] = people.get(str(row.get("created_by") or "").strip(), "")
@@ -642,9 +663,13 @@ def fetch_contacts(token: str, versions: list, host: str = None) -> dict:
     return by_version
 
 
-def build_for_employee(token: str, employee_code: str, host: str = None):
-    """(workbook, versions) for one employee, or (None, []) when it has no history."""
-    versions = fetch_versions(token, employee_code, host=host)
+def build_for_employee(token: str, employee_code: str, host: str = None,
+                       cache: dict = None):
+    """(workbook, versions) for one employee, or (None, []) when it has no history.
+
+    Pass the same `cache` (see new_cache) for every employee of a batch.
+    """
+    versions = fetch_versions(token, employee_code, host=host, cache=cache)
     if not versions:
         return None, []
     contacts = fetch_contacts(token, versions, host=host)
