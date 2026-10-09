@@ -284,6 +284,33 @@ def _errors_for(token, host, run_id, api, client_label):
                 use_container_width=True)
 
 
+def in_flight(rows):
+    """Runs that never wrote a result, split into "still going" and "gave up".
+
+    Until a run finishes it has no response_body, so it has no TotalMap, so it
+    belongs to no API and produces no card. Without this it would be invisible on
+    the main screen - and a push that is still going is exactly the thing someone
+    refreshing this page wants to know about. The log does not say which API is in
+    flight; that only arrives with the result.
+
+    Anything older than two hours has not been running for two hours, it died.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    going, died = [], []
+    for row in rows:
+        if row.get("end_time"):
+            continue
+        started = obq.parse_ts(row.get("start_time"))
+        minutes = int((now - started).total_seconds() // 60) if started else 0
+        entry = {"run": row.get("id"), "minutes": minutes,
+                 "by": (row.get("created_by") or "").split("@")[0],
+                 "when": obq.ist(row.get("start_time"), "%d-%b %H:%M")}
+        (going if minutes <= 120 else died).append(entry)
+    return going, died
+
+
 def api_runs(rows, module):
     """Every run that included `module`, newest first, with that module's own counts.
 
@@ -384,9 +411,12 @@ def render_ui():
             "- **Warnings are not failures.** Those employees went through; Uzio just "
             "filled something in for them (a blank amount defaulted to 0, say). They sit "
             "in an expander because they rarely need action.\n"
-            "- **\"Never finished\"** means the run wrote no result at all — it is still "
-            "going, or it died. **\"Nothing processed\"** means it finished but no "
-            "employee went in: an empty file, or nobody matched. Neither is a pass.\n"
+            "- **A run that is still going** appears as a banner at the top, not as a "
+            "line — the log does not record which API it was until it finishes. Press "
+            "the button again a few minutes later and it will have joined the list.\n"
+            "- **\"Nothing processed\"** means a run finished but no employee went in: "
+            "an empty file, or nobody matched. **Runs that never wrote a result** died "
+            "partway and are called out separately. Neither is a pass.\n"
             "- Times are **IST**, and the name beside each line is whoever ran it.")
 
     picked = st.selectbox("Client", list(labels),
@@ -417,6 +447,20 @@ def render_ui():
         client_name,
         ("Every API went through." if not bad else
          f"{len(bad)} of {len(records)} APIs need attention."))
+
+    going, died = in_flight(rows)
+    for entry in going:
+        minutes = entry["minutes"]
+        age = "just now" if minutes < 1 else f"{minutes} minute(s) ago"
+        st.warning(f"⏳ **A run is still going** — run {entry['run']}, started {age} by "
+                   f"{entry['by']}. The log only says which API it was once it "
+                   f"finishes, so it is not in the list below yet. Press **Show me how "
+                   f"the APIs went** again in a few minutes.")
+    if died:
+        st.info(f"{len(died)} earlier run(s) never wrote a result — "
+                + ", ".join(f"run {e['run']} ({e['when']}, {e['by']})" for e in died[:3])
+                + (" and others" if len(died) > 3 else "")
+                + ". They died partway, so whatever they did is not counted below.")
 
     for record in records:
         col1, col2 = st.columns([5, 1])
