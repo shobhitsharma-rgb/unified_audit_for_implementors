@@ -1,21 +1,24 @@
-"""Onboarding API run logs — the jumpserver/DBeaver view, on screen.
+"""Onboarding API run logs, one Amazon DSP client at a time.
 
-Every census, prior payroll, payment, tax and deduction push writes a row to
-`onboarding_automation_history`. Today the only way to read it is a jumpserver
-session and a DBeaver window, which implementors do not have, so every "why did
-my run fail" lands on someone else's desk. This shows the same thing from the
-tool: who ran it, when, how many went through, how many failed, and exactly
-which employees failed for what reason.
+Every census, prior payroll, payment, tax or deduction push writes a row to
+`onboarding_automation_history`. Reading it meant a jumpserver session and a
+DBeaver window, which implementors do not have, so every "why did my run fail"
+landed on someone with database access.
 
-Sign-in mints two tokens from ONE set of credentials:
-  * the onboarding token (needs any FEIN you have access to) — the log itself
-  * the NeuronOps token — only to turn a FEIN into a client name
+The question people actually arrive with is "what has been run for THIS client" —
+they know the client's name and nothing else. So the tool starts from a dropdown
+of every client on the Amazon exchange and answers, for the one picked: which
+implementor ran which API, when, and how it went. Any run opens to its
+per-employee errors.
 
-Everything is read-only and audited under the credentials entered. Nothing is
+Sign-in takes a username and a password and nothing else. The onboarding token
+does need a FEIN, but the tool has the client list by then and mints the token
+itself, so nobody has to know one.
+
+Read-only throughout, audited under the credentials entered, and nothing is
 stored on the server: both tokens live in this browser session only.
 """
 import io
-from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -24,183 +27,172 @@ from utils import neuronops_client as neuron
 from utils import onboarding_query as obq
 from utils.ui_components import _callout, render_premium_header
 
+# Every DSP client sits on this exchange; it is what makes the list "Amazon".
+AMAZON_EXCHANGE_ID = "EX-20243277-1b50-4035-821d-d0fcd9b895a9"
+ALL_CLIENTS = "— All Amazon clients (last 7 days) —"
+
 TOKEN_KEY = "obl_token"
 NEURON_KEY = "obl_neuron"
 USER_KEY = "obl_user"
 HOST_KEY = "obl_host"
+CLIENTS_KEY = "obl_clients"
 RUNS_KEY = "obl_runs"
-NAMES_KEY = "obl_names"
+RUNS_FOR_KEY = "obl_runs_for"
 
-VENDORS = {"All": None, "ADP": "ADP", "Paycom": "PAYCOM"}
-STATUSES = ["All", "Failures only", "Still running / no result"]
+
+def _amazon_clients(token) -> list:
+    """Every client on the Amazon exchange, by name."""
+    rows = neuron.query(token, "select fein, company_name, live_status, is_test_client "
+                        "from employer_organization where exchange_id = "
+                        f"'{AMAZON_EXCHANGE_ID}' and deleted = 0 order by company_name")
+    return [r for r in rows if r.get("fein") and r.get("company_name")]
+
+
+def _mint_onboarding_token(username, password, clients, host):
+    """The token needs some FEIN; the user should not have to know one.
+
+    Any FEIN the caller has access to unlocks the whole log, so the client list is
+    walked until one is accepted rather than asking for one.
+    """
+    last_error = None
+    for client in clients[:8]:
+        try:
+            return obq.login(username, password, str(client["fein"]), host=host), None
+        except obq.OnboardingQueryError as e:
+            last_error = e
+    return None, last_error
 
 
 def _sign_in():
     render_premium_header("Sign in with your Uzio credentials",
-                          "The same login you use for the onboarding API. Your password "
-                          "is used once to mint a token and is never stored.")
+                          "Username and password only — the client list and the log are "
+                          "both unlocked from these. Your password is used once and is "
+                          "never stored.")
     with st.form("obl_login"):
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         username = col1.text_input("Username", placeholder="firstname.lastname@uzio.com")
         password = col2.text_input("Password", type="password")
-        fein = col3.text_input("Any FEIN you have access to", placeholder="863131339",
-                               help="The token is minted against one employer, but the "
-                                    "log it reads covers every client.")
         host = st.text_input("Environment", value=obq.DEFAULT_HOST)
         submitted = st.form_submit_button("Sign in", type="primary")
 
     if not submitted:
         return
-    if not (username and password and fein):
-        st.error("Enter your username, password and a FEIN.")
+    if not (username and password):
+        st.error("Enter your username and password.")
         return
+
     with st.spinner("Signing in…"):
         try:
-            st.session_state[TOKEN_KEY] = obq.login(username.strip(), password,
-                                                    obq.digits(fein) or fein.strip(),
-                                                    host=host.strip())
-        except obq.OnboardingQueryError as e:
+            neuron_token = neuron.login(username.strip(), password)
+        except neuron.NeuronOpsError as e:
             st.error(str(e))
             return
-        # Client names come from a different database, so this one is optional:
-        # without it the log still reads, it just shows FEINs.
         try:
-            st.session_state[NEURON_KEY] = neuron.login(username.strip(), password)
-        except neuron.NeuronOpsError:
-            st.session_state[NEURON_KEY] = ""
-    st.session_state[USER_KEY] = username.strip()
-    st.session_state[HOST_KEY] = host.strip()
+            clients = _amazon_clients(neuron_token)
+        except neuron.NeuronOpsError as e:
+            st.error(f"Signed in, but the client list could not be read: {e}")
+            return
+        if not clients:
+            st.error("No clients came back for the Amazon exchange.")
+            return
+        token, failure = _mint_onboarding_token(username.strip(), password, clients,
+                                                host.strip())
+    if not token:
+        st.error(f"Signed in to the reporting database, but the onboarding log refused "
+                 f"the same credentials: {failure}")
+        return
+
+    st.session_state.update({NEURON_KEY: neuron_token, TOKEN_KEY: token,
+                             CLIENTS_KEY: clients, USER_KEY: username.strip(),
+                             HOST_KEY: host.strip()})
     st.rerun()
 
 
-def _client_names(feins) -> dict:
-    """{fein -> company name}, as far as they can be resolved."""
-    known = st.session_state.setdefault(NAMES_KEY, {})
-    wanted = {obq.digits(f) for f in feins if obq.digits(f)} - set(known)
-    for fein in wanted & set(obq.SANDBOX_FEINS):
-        known[fein] = obq.SANDBOX_FEINS[fein]
-    wanted -= set(obq.SANDBOX_FEINS)
-    token = st.session_state.get(NEURON_KEY)
-    if wanted and token:
-        quoted = neuron.sql_in_list(wanted)
-        if quoted:
-            try:
-                for row in neuron.query(token, "select fein, company_name from "
-                                        f"employer_organization where fein in ({quoted})"):
-                    known[str(row.get("fein"))] = row.get("company_name") or ""
-            except neuron.NeuronOpsError:
-                pass                      # names are a nicety, the log is the point
-    for fein in wanted:
-        known.setdefault(fein, "")
-    return known
+def _runs_for_client(token, host, fein, limit=300):
+    where = f"fein = '{obq.digits(fein)}'" if fein else None
+    if not where:                      # the all-clients view, kept to a week
+        from datetime import date, timedelta
+        begin, finish = obq.day_bounds_utc(date.today() - timedelta(days=7), date.today())
+        where = f"start_time >= '{begin}' and start_time < '{finish}'"
+    return obq.query(token, f"select {obq.LIGHT_COLUMNS} from {obq.TABLE} "
+                     f"where {where} order by id desc limit {int(limit)}", host=host)
 
 
-def _fetch_runs(token, host, start_day, end_day, vendor, fein, user, limit):
-    where = []
-    begin, finish = obq.day_bounds_utc(start_day, end_day)
-    where.append(f"start_time >= '{begin}' and start_time < '{finish}'")
-    if vendor:
-        where.append(f"upper(vendor) = '{vendor}'")
-    if fein:
-        where.append(f"fein = '{fein}'")
-    if user:
-        where.append(f"lower(created_by) like lower('%{user}%')")
-    sql = (f"select {obq.LIGHT_COLUMNS} from {obq.TABLE} where " + " and ".join(where)
-           + f" order by id desc limit {int(limit)}")
-    return obq.query(token, sql, host=host)
+def _who_ran_what(rows) -> pd.DataFrame:
+    """One line per API, showing the most recent run of it and who ran it.
+
+    This is the answer to the question people arrive with: what has been set up for
+    this client, by whom, and when.
+    """
+    latest = {}
+    for row in rows:                   # newest first, so the first hit per module wins
+        summary = obq.summarize(row)
+        for module in summary["modules"]:
+            if module in latest:
+                latest[module]["Runs"] += 1
+                continue
+            failed = int(summary["failed"].get(module) or 0)
+            # The run's own status covers every module in it, so a run that failed
+            # elsewhere would libel a module that went through cleanly. Only borrow it
+            # when there is no result at all.
+            status = summary["status"] if not row.get("end_time") else (
+                "OK" if failed == 0 else f"FAIL {failed}")
+            latest[module] = {
+                "API": obq.MODULE_SHORT.get(module, module),
+                "Last run by": (row.get("created_by") or "").split("@")[0],
+                "When (IST)": obq.ist(row.get("start_time"), "%d-%b-%Y %H:%M"),
+                "Run": row.get("id"),
+                "Total": summary["totals"].get(module),
+                "OK": summary["passed"].get(module),
+                "Fail": summary["failed"].get(module),
+                "Status": status,
+                "Runs": 1,
+            }
+    order = ["API", "Last run by", "When (IST)", "Total", "OK", "Fail", "Status",
+             "Runs", "Run"]
+    return pd.DataFrame(list(latest.values()))[order] if latest else pd.DataFrame()
 
 
-def _runs_frame(rows, names) -> pd.DataFrame:
+def _runs_frame(rows, names=None) -> pd.DataFrame:
     out = []
     for row in rows:
         summary = obq.summarize(row)
-        fein = str(row.get("fein") or "")
-        out.append({
-            "Run": row.get("id"),
-            "Client": names.get(obq.digits(fein), "") or "(unknown)",
-            "FEIN": fein,
-            "Started (IST)": obq.ist(row.get("start_time")),
-            "Vendor": (row.get("vendor") or "").upper().replace("PAYCOM", "Paycom"),
-            "Modules": ", ".join(obq.MODULE_SHORT.get(m, m) for m in summary["modules"]),
-            "Total": summary["total"],
-            "OK": summary["ok"],
-            "Fail": summary["fail"],
-            "Ran by": (row.get("created_by") or "").split("@")[0],
-            "Took": summary["duration"],
-            "Status": summary["status"],
-        })
+        entry = {"Run": row.get("id"),
+                 "Started (IST)": obq.ist(row.get("start_time")),
+                 "Ran by": (row.get("created_by") or "").split("@")[0],
+                 "APIs": ", ".join(obq.MODULE_SHORT.get(m, m) for m in summary["modules"]),
+                 "Vendor": (row.get("vendor") or "").upper().replace("PAYCOM", "Paycom"),
+                 "Total": summary["total"], "OK": summary["ok"], "Fail": summary["fail"],
+                 "Took": summary["duration"], "Status": summary["status"]}
+        if names is not None:
+            fein = str(row.get("fein") or "")
+            entry = {"Client": names.get(fein, fein), **entry}
+        out.append(entry)
     return pd.DataFrame(out)
 
 
-def _filters():
-    today = date.today()
-    with st.form("obl_filters"):
-        col1, col2, col3 = st.columns([2, 1, 1])
-        span = col1.date_input("Started between (IST)",
-                               value=(today - timedelta(days=7), today), max_value=today)
-        vendor = VENDORS[col2.selectbox("Vendor", list(VENDORS))]
-        status = col3.selectbox("Show", STATUSES)
-        col4, col5, col6 = st.columns([2, 2, 1])
-        client = col4.text_input("Client name or FEIN", placeholder="Express Package, or 863131339")
-        user = col5.text_input("Ran by", placeholder="tierra")
-        limit = col6.number_input("Max runs", 10, 1000, 200, step=10)
-        go = st.form_submit_button("Show runs", type="primary")
-    if not go:
-        return None
-    start_day, end_day = span if isinstance(span, (tuple, list)) and len(span) == 2 else (span, span)
-    return {"start": start_day, "end": end_day, "vendor": vendor, "status": status,
-            "client": client.strip(), "user": obq.sql_literal(user), "limit": limit}
-
-
-def _resolve_client(text):
-    """A typed client -> FEIN. A name needs the NeuronOps token; a FEIN never does."""
-    if not text:
-        return "", None
-    fein = obq.digits(text)
-    if fein:
-        return fein, None
-    token = st.session_state.get(NEURON_KEY)
-    if not token:
-        return "", ("Searching by client name needs the second sign-in, which did not "
-                    "go through. Enter the 9-digit FEIN instead.")
-    safe = obq.sql_literal(text)
-    try:
-        found = neuron.query(token, "select fein, company_name from employer_organization "
-                             f"where lower(company_name) like lower('%{safe}%') and deleted = 0")
-    except neuron.NeuronOpsError as e:
-        return "", str(e)
-    feins = {str(r.get("fein")): r.get("company_name") for r in found if r.get("fein")}
-    if not feins:
-        return "", f"No client matching “{text}”."
-    if len(feins) > 1:
-        listed = ", ".join(f"{name} ({fein})" for fein, name in list(feins.items())[:6])
-        return "", f"That matches more than one client: {listed}. Use the FEIN."
-    return next(iter(feins)), None
-
-
-def _run_detail(token, host, run_id, names):
+def _run_detail(token, host, run_id, client_label):
     rows = obq.query(token, f"select * from {obq.TABLE} where id = {int(run_id)}", host=host)
     if not rows:
         st.error(f"No run with id {run_id}.")
         return
     row = rows[0]
     summary = obq.summarize(row)
-    fein = str(row.get("fein") or "")
-    name = names.get(obq.digits(fein), "") or "(unknown client)"
 
     st.markdown(_callout("ok" if summary["status"] == "OK" else "warn",
-                         f"Run {run_id} — {name} ({fein})",
+                         f"Run {run_id} — {client_label}",
                          f"{(row.get('vendor') or '').upper()} · started "
                          f"{obq.ist(row.get('start_time'), '%d-%b-%Y %H:%M:%S')} IST · "
-                         f"by {row.get('created_by') or '?'} · took {summary['duration'] or '—'} · "
-                         f"{summary['status']}"), unsafe_allow_html=True)
+                         f"by {row.get('created_by') or '?'} · took "
+                         f"{summary['duration'] or '—'} · {summary['status']}"),
+                unsafe_allow_html=True)
     if not row.get("end_time"):
-        st.warning("This run has no end time and no result: it is still going, or it died "
-                   "without writing one.")
+        st.warning("This run has no end time and no result: it is still going, or it "
+                   "died without writing one.")
 
     if summary["totals"]:
         st.dataframe(pd.DataFrame([{
-            "Module": obq.MODULE_SHORT.get(m, m),
+            "API": obq.MODULE_SHORT.get(m, m),
             "Total": summary["totals"].get(m),
             "OK": summary["passed"].get(m),
             "Fail": summary["failed"].get(m),
@@ -211,14 +203,15 @@ def _run_detail(token, host, run_id, names):
     if not errors and not warnings:
         st.success("No per-employee errors or warnings were written for this run.")
 
-    for label, issues, tone in (("Errors — these employees did not go through", errors, "error"),
-                                ("Warnings — these went through, but check them", warnings, "warn")):
+    for label, issues, tone in (
+            ("Errors — these employees did not go through", errors, "error"),
+            ("Warnings — these went through, but check them", warnings, "warn")):
         if not issues:
             continue
         st.markdown(_callout(tone, f"{label}  ({len(issues)} rows)",
-                             "Grouped by reason — the same reason hit by many employees is "
-                             "one line here; the full list is below and in the download."),
-                    unsafe_allow_html=True)
+                             "Grouped by reason — the same reason hit by many employees "
+                             "is one line here; the full list is below and in the "
+                             "download."), unsafe_allow_html=True)
         st.dataframe(pd.DataFrame(obq.group_issues(issues)), hide_index=True,
                      use_container_width=True)
         with st.expander(f"Every row ({len(issues)})"):
@@ -241,81 +234,96 @@ def _run_detail(token, host, run_id, names):
         # Plain UTF-8, no BOM: these CSVs get fed back into other tools.
         col2.download_button(f"Download run {run_id} issues (.csv)",
                              frame.to_csv(index=False).encode("utf-8"),
-                             file_name=f"Onboarding_run_{run_id}_issues.csv", mime="text/csv")
+                             file_name=f"Onboarding_run_{run_id}_issues.csv",
+                             mime="text/csv")
 
 
 def render_ui():
     st.title("Onboarding API Run Logs")
     st.markdown(
-        "Every census, prior payroll, payment, tax or deduction push writes a row to "
-        "`onboarding_automation_history`. This reads it directly — **who ran it, when, "
-        "how many went through, how many failed and why** — so nobody needs a "
-        "jumpserver and DBeaver to answer that."
+        "Pick an Amazon DSP client and see **which implementor ran which API, when, and "
+        "how it went** — then open any run for its per-employee errors. Reads the "
+        "onboarding API's own log, so nobody needs a jumpserver and DBeaver."
     )
 
     token = st.session_state.get(TOKEN_KEY)
     if not token:
         st.markdown(_callout("warn", "Read-only, and audited under your own login",
-                             "One SELECT against the reporting endpoint — it cannot change "
-                             "anything, and the read is recorded against the credentials you "
-                             "sign in with. Nothing is saved on the server; your password is "
-                             "used once and the tokens live in this browser session only."),
+                             "One SELECT against the reporting endpoints — it cannot "
+                             "change anything, and the read is recorded against the "
+                             "credentials you sign in with. Nothing is saved on the "
+                             "server; the tokens live in this browser session only."),
                     unsafe_allow_html=True)
         _sign_in()
         return
 
     host = st.session_state.get(HOST_KEY) or obq.DEFAULT_HOST
+    clients = st.session_state.get(CLIENTS_KEY) or []
     col1, col2 = st.columns([4, 1])
-    names_on = "client names on" if st.session_state.get(NEURON_KEY) else "FEIN only"
-    col1.caption(f"Signed in as **{st.session_state.get(USER_KEY, '')}** · {host} · {names_on}")
+    col1.caption(f"Signed in as **{st.session_state.get(USER_KEY, '')}** · {host} · "
+                 f"{len(clients)} Amazon clients")
     if col2.button("Sign out"):
-        for key in (TOKEN_KEY, NEURON_KEY, USER_KEY, HOST_KEY, RUNS_KEY, NAMES_KEY):
+        for key in (TOKEN_KEY, NEURON_KEY, USER_KEY, HOST_KEY, CLIENTS_KEY, RUNS_KEY,
+                    RUNS_FOR_KEY):
             st.session_state.pop(key, None)
         st.rerun()
 
-    if not st.session_state.get(NEURON_KEY):
-        st.info("Client names could not be switched on (the second sign-in was refused), so "
-                "runs show their FEIN. Everything else works.")
+    labels = {ALL_CLIENTS: None}
+    names = {}
+    for client in clients:
+        fein = str(client["fein"])
+        mark = "  ·  test client" if client.get("is_test_client") else ""
+        labels[f"{client['company_name']}  ({fein}){mark}"] = fein
+        names[fein] = client["company_name"]
 
-    chosen = _filters()
-    if chosen:
-        fein, problem = _resolve_client(chosen["client"])
-        if problem:
-            st.error(problem)
-        else:
-            with st.spinner("Reading the log…"):
-                try:
-                    rows = _fetch_runs(token, host, chosen["start"], chosen["end"],
-                                       chosen["vendor"], fein, chosen["user"], chosen["limit"])
-                except obq.OnboardingQueryError as e:
-                    st.error(str(e))
-                    rows = None
-            if rows is not None:
-                if chosen["status"] == "Failures only":
-                    rows = [r for r in rows if (obq.summarize(r)["fail"] or 0) > 0]
-                elif chosen["status"] == "Still running / no result":
-                    rows = [r for r in rows if not r.get("end_time")]
-                st.session_state[RUNS_KEY] = rows
+    col1, col2 = st.columns([3, 1])
+    picked = col1.selectbox("Client", list(labels),
+                            help="Start typing to search. Every client on the Amazon "
+                                 "exchange is here.")
+    only_failures = col2.checkbox("Failures only")
+    if st.button("Show runs", type="primary"):
+        with st.spinner("Reading the log…"):
+            try:
+                st.session_state[RUNS_KEY] = _runs_for_client(token, host, labels[picked])
+                st.session_state[RUNS_FOR_KEY] = picked
+            except obq.OnboardingQueryError as e:
+                st.error(str(e))
+                return
 
     rows = st.session_state.get(RUNS_KEY)
     if rows is None:
         return
+    shown_for = st.session_state.get(RUNS_FOR_KEY, picked)
+    if only_failures:
+        rows = [r for r in rows if (obq.summarize(r)["fail"] or 0) > 0]
     if not rows:
-        st.info("No runs matched. Widen the dates, or clear a filter.")
+        st.info(f"No runs found for {shown_for}."
+                + (" Untick “Failures only” to see the successful ones."
+                   if only_failures else " This client has never been pushed to."))
         return
 
-    names = _client_names({r.get("fein") for r in rows})
-    frame = _runs_frame(rows, names)
-    render_premium_header(f"{len(frame)} run(s)",
-                          "Newest first. Pick a run below to see its per-employee errors.")
+    client_fein = labels.get(shown_for)
+    if client_fein:
+        render_premium_header(f"What has been run for {names.get(client_fein, shown_for)}",
+                              "One line per API — the most recent run of it, who ran it, "
+                              "and how many runs there have been in total.")
+        summary = _who_ran_what(rows)
+        if not summary.empty:
+            st.dataframe(summary, hide_index=True, use_container_width=True)
+
+    render_premium_header(f"All {len(rows)} run(s), newest first",
+                          "Pick one below to see its per-employee errors.")
+    frame = _runs_frame(rows, None if client_fein else names)
     st.dataframe(frame, hide_index=True, use_container_width=True)
 
-    labels = {f"{r['Run']} — {r['Client']} — {r['Modules'] or '?'} — {r['Started (IST)']} "
-              f"— {r['Status']}": r["Run"] for _, r in frame.iterrows()}
-    picked = st.selectbox("Open a run", list(labels), index=0)
+    options = {f"{r['Run']} — {r['APIs'] or '?'} — {r['Started (IST)']} — "
+               f"by {r['Ran by']} — {r['Status']}": r["Run"] for _, r in frame.iterrows()}
+    chosen = st.selectbox("Open a run", list(options))
     if st.button("Show this run's errors", type="primary"):
         with st.spinner("Reading that run…"):
             try:
-                _run_detail(token, host, labels[picked], names)
+                _run_detail(token, host, options[chosen],
+                            names.get(client_fein, shown_for) if client_fein
+                            else "all clients")
             except obq.OnboardingQueryError as e:
                 st.error(str(e))
