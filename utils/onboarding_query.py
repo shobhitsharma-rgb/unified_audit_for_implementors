@@ -26,6 +26,9 @@ TABLE = "onboarding_automation_history"
 LIGHT_COLUMNS = ("id, vendor, fein, start_time, end_time, created_by, created_date, "
                  "response_body")
 
+# A finished run that touched no employees at all. Not a pass, not a failure.
+NOTHING_PROCESSED = "Nothing processed"
+
 MODULE_SHORT = {
     "EmployeeCensus": "Census", "PaymentMethodSetup": "Payment",
     "FedTaxWithholding": "FedTax", "StateTaxWithholding": "StateTax",
@@ -155,7 +158,8 @@ def summarize(row: dict) -> dict:
     """Counts and a status for one run, read out of response_body.
 
     An empty end_time means the run is still going or died without writing a
-    result; the age says which is more likely.
+    result; the age says which is more likely. A run that finished having
+    processed nobody is reported as such rather than as a success.
     """
     import json
 
@@ -168,8 +172,14 @@ def summarize(row: dict) -> dict:
     failed = body.get("FailureMap") or {}
     fail_count = sum(int(v or 0) for v in failed.values())
 
+    processed = sum(int(v or 0) for v in totals.values())
     if row.get("end_time"):
-        status = "OK" if fail_count == 0 else f"FAIL {fail_count}"
+        if processed == 0:
+            # Finished, but nobody went in: no employees matched, or the file was
+            # empty. Calling that OK reads as "it worked", which it did not.
+            status = NOTHING_PROCESSED
+        else:
+            status = "OK" if fail_count == 0 else f"FAIL {fail_count}"
     else:
         started = parse_ts(row.get("start_time"))
         minutes = int((datetime.now(timezone.utc) - started).total_seconds() // 60) if started else 0

@@ -140,10 +140,13 @@ def _api_status(rows) -> list:
                 # No end time means no result was ever written, which is not the same
                 # as a clean run and must not be shown as one.
                 "unfinished": not row.get("end_time"),
+                # Finished having processed nobody: also not a pass.
+                "empty": bool(row.get("end_time")) and total == 0,
                 "runs": 1,
             }
     records = list(latest.values())
-    records.sort(key=lambda r: (not (r["fail"] or r["unfinished"]), r["api"]))
+    records.sort(key=lambda r: (not (r["fail"] or r["unfinished"] or r["empty"]),
+                                r["api"]))
     return records
 
 
@@ -293,8 +296,13 @@ def api_runs(rows, module):
         if module not in summary["modules"]:
             continue
         failed = int(summary["failed"].get(module) or 0)
-        status = (summary["status"] if not row.get("end_time")
-                  else ("OK" if failed == 0 else f"FAIL {failed}"))
+        total = int(summary["totals"].get(module) or 0)
+        if not row.get("end_time"):
+            status = summary["status"]
+        elif total == 0:
+            status = obq.NOTHING_PROCESSED
+        else:
+            status = "OK" if failed == 0 else f"FAIL {failed}"
         when = obq.ist(row.get("start_time"), "%d-%b-%Y %H:%M")
         by = (row.get("created_by") or "").split("@")[0]
         table[row.get("id")] = {"Run": row.get("id"), "When (IST)": when, "Ran by": by,
@@ -377,8 +385,8 @@ def render_ui():
             "filled something in for them (a blank amount defaulted to 0, say). They sit "
             "in an expander because they rarely need action.\n"
             "- **\"Never finished\"** means the run wrote no result at all — it is still "
-            "going, or it died. It is not a pass, and the counts for it are missing "
-            "rather than zero.\n"
+            "going, or it died. **\"Nothing processed\"** means it finished but no "
+            "employee went in: an empty file, or nobody matched. Neither is a pass.\n"
             "- Times are **IST**, and the name beside each line is whoever ran it.")
 
     picked = st.selectbox("Client", list(labels),
@@ -404,7 +412,7 @@ def render_ui():
         return
 
     records = _api_status(rows)
-    bad = [r for r in records if r["fail"] or r["unfinished"]]
+    bad = [r for r in records if r["fail"] or r["unfinished"] or r["empty"]]
     render_premium_header(
         client_name,
         ("Every API went through." if not bad else
@@ -415,6 +423,9 @@ def render_ui():
         if record["unfinished"]:
             col1.warning(f"**{record['api']}** — never finished. Started "
                          f"{record['when']} IST by {record['by']}.")
+        elif record["empty"]:
+            col1.info(f"**{record['api']}** — the last run processed no employees at "
+                      f"all. Run on {record['when']} IST by {record['by']}.")
         elif record["fail"]:
             col1.error(f"**{record['api']}** — **{record['fail']} of {record['total']} "
                        f"employees failed**. Run on {record['when']} IST by "
@@ -422,8 +433,13 @@ def render_ui():
         else:
             col1.success(f"**{record['api']}** — all {record['total']} went through. "
                          f"Run on {record['when']} IST by {record['by']}.")
-        label = "See why" if record["runs"] == 1 else f"See all {record['runs']} runs"
-        if col2.button(label, key=f"open_{record['module']}"):
+        if record["runs"] > 1:
+            label = f"See all {record['runs']} runs"
+        elif record["fail"] or record["unfinished"] or record["empty"]:
+            label = "See why"
+        else:
+            label = None                   # one clean run needs no second look
+        if label and col2.button(label, key=f"open_{record['module']}"):
             st.session_state[SHOW_KEY] = record["module"]
 
     chosen = st.session_state.get(SHOW_KEY)
