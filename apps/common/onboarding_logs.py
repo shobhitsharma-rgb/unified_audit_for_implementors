@@ -29,7 +29,6 @@ from utils.ui_components import _callout, render_premium_header
 
 # Every DSP client sits on this exchange; it is what makes the list "Amazon".
 AMAZON_EXCHANGE_ID = "EX-20243277-1b50-4035-821d-d0fcd9b895a9"
-ALL_CLIENTS = "— All Amazon clients (last 7 days) —"
 
 TOKEN_KEY = "obl_token"
 NEURON_KEY = "obl_neuron"
@@ -38,6 +37,7 @@ HOST_KEY = "obl_host"
 CLIENTS_KEY = "obl_clients"
 RUNS_KEY = "obl_runs"
 RUNS_FOR_KEY = "obl_runs_for"
+SHOW_KEY = "obl_show"
 
 
 def _amazon_clients(token) -> list:
@@ -109,65 +109,57 @@ def _sign_in():
 
 
 def _runs_for_client(token, host, fein, limit=300):
-    where = f"fein = '{obq.digits(fein)}'" if fein else None
-    if not where:                      # the all-clients view, kept to a week
-        from datetime import date, timedelta
-        begin, finish = obq.day_bounds_utc(date.today() - timedelta(days=7), date.today())
-        where = f"start_time >= '{begin}' and start_time < '{finish}'"
     return obq.query(token, f"select {obq.LIGHT_COLUMNS} from {obq.TABLE} "
-                     f"where {where} order by id desc limit {int(limit)}", host=host)
+                     f"where fein = '{obq.digits(fein)}' order by id desc "
+                     f"limit {int(limit)}", host=host)
 
 
-def _who_ran_what(rows) -> pd.DataFrame:
-    """One line per API, showing the most recent run of it and who ran it.
+def _api_status(rows) -> list:
+    """One record per API: did it go through, when, and who ran it.
 
-    This is the answer to the question people arrive with: what has been set up for
-    this client, by whom, and when.
+    Keyed on the most recent run of each API, because that is the one that counts -
+    an earlier failure that has since been re-run is history, not a problem.
     """
     latest = {}
-    for row in rows:                   # newest first, so the first hit per module wins
+    for row in rows:                   # newest first, so the first hit per API wins
         summary = obq.summarize(row)
         for module in summary["modules"]:
             if module in latest:
-                latest[module]["Runs"] += 1
+                latest[module]["runs"] += 1
                 continue
             failed = int(summary["failed"].get(module) or 0)
-            # The run's own status covers every module in it, so a run that failed
-            # elsewhere would libel a module that went through cleanly. Only borrow it
-            # when there is no result at all.
-            status = summary["status"] if not row.get("end_time") else (
-                "OK" if failed == 0 else f"FAIL {failed}")
+            total = int(summary["totals"].get(module) or 0)
             latest[module] = {
-                "API": obq.MODULE_SHORT.get(module, module),
-                "Last run by": (row.get("created_by") or "").split("@")[0],
-                "When (IST)": obq.ist(row.get("start_time"), "%d-%b-%Y %H:%M"),
-                "Run": row.get("id"),
-                "Total": summary["totals"].get(module),
-                "OK": summary["passed"].get(module),
-                "Fail": summary["failed"].get(module),
-                "Status": status,
-                "Runs": 1,
+                "api": obq.MODULE_SHORT.get(module, module),
+                "module": module,
+                "run": row.get("id"),
+                "by": (row.get("created_by") or "").split("@")[0],
+                "when": obq.ist(row.get("start_time"), "%d-%b %H:%M"),
+                "total": total, "ok": int(summary["passed"].get(module) or 0),
+                "fail": failed,
+                # No end time means no result was ever written, which is not the same
+                # as a clean run and must not be shown as one.
+                "unfinished": not row.get("end_time"),
+                "runs": 1,
             }
-    order = ["API", "Last run by", "When (IST)", "Total", "OK", "Fail", "Status",
-             "Runs", "Run"]
-    return pd.DataFrame(list(latest.values()))[order] if latest else pd.DataFrame()
+    records = list(latest.values())
+    records.sort(key=lambda r: (not (r["fail"] or r["unfinished"]), r["api"]))
+    return records
 
 
-def _runs_frame(rows, names=None) -> pd.DataFrame:
+def _runs_frame(rows) -> pd.DataFrame:
+    """The full history, for the expander at the bottom."""
     out = []
     for row in rows:
         summary = obq.summarize(row)
-        entry = {"Run": row.get("id"),
-                 "Started (IST)": obq.ist(row.get("start_time")),
-                 "Ran by": (row.get("created_by") or "").split("@")[0],
-                 "APIs": ", ".join(obq.MODULE_SHORT.get(m, m) for m in summary["modules"]),
-                 "Vendor": (row.get("vendor") or "").upper().replace("PAYCOM", "Paycom"),
-                 "Total": summary["total"], "OK": summary["ok"], "Fail": summary["fail"],
-                 "Took": summary["duration"], "Status": summary["status"]}
-        if names is not None:
-            fein = str(row.get("fein") or "")
-            entry = {"Client": names.get(fein, fein), **entry}
-        out.append(entry)
+        out.append({"Run": row.get("id"),
+                    "Started (IST)": obq.ist(row.get("start_time")),
+                    "Ran by": (row.get("created_by") or "").split("@")[0],
+                    "APIs": ", ".join(obq.MODULE_SHORT.get(m, m)
+                                      for m in summary["modules"]),
+                    "Total": summary["total"], "OK": summary["ok"],
+                    "Fail": summary["fail"], "Took": summary["duration"],
+                    "Status": summary["status"]})
     return pd.DataFrame(out)
 
 
@@ -238,12 +230,63 @@ def _run_detail(token, host, run_id, client_label):
                              mime="text/csv")
 
 
+def _errors_for(token, host, record, client_label):
+    """The errors of one API's latest run — grouped, with the detail tucked away."""
+    rows = obq.query(token, f"select * from {obq.TABLE} where id = {int(record['run'])}",
+                     host=host)
+    if not rows:
+        st.error(f"Run {record['run']} is no longer in the log.")
+        return
+    row = rows[0]
+    errors = [i for i in obq.issue_rows(row.get("error_messages"))
+              if i["Module"] == record["api"] or not i["Module"]]
+    warnings = [i for i in obq.issue_rows(row.get("optional_validations"))
+                if i["Module"] == record["api"] or not i["Module"]]
+
+    st.markdown(f"#### {record['api']} — what went wrong")
+    st.caption(f"{client_label} · run {record['run']} · {record['when']} IST · "
+               f"by {record['by']}")
+
+    if not errors:
+        st.info("The API reported failures but wrote no per-employee reasons for them. "
+                "The counts above are all the log holds for this run.")
+    else:
+        st.markdown(f"**{len(errors)} employees did not go through.** Same reason, one "
+                    "line — fix the reason and they all clear.")
+        st.dataframe(pd.DataFrame(obq.group_issues(errors))[
+            ["Employees", "Reason", "e.g."]], hide_index=True, use_container_width=True)
+
+    frame = pd.DataFrame([{**i, "Kind": kind} for kind, group in
+                          (("Error", errors), ("Warning", warnings)) for i in group])
+    if not frame.empty:
+        book = io.BytesIO()
+        with pd.ExcelWriter(book, engine="xlsxwriter") as writer:
+            frame.to_excel(writer, sheet_name="Issues", index=False)
+            if errors:
+                pd.DataFrame(obq.group_issues(errors)).to_excel(
+                    writer, sheet_name="Grouped", index=False)
+        st.download_button(f"Download the full list ({len(frame)} rows)", book.getvalue(),
+                           file_name=f"{record['api']}_run_{record['run']}_issues.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument."
+                                "spreadsheetml.sheet", type="primary")
+
+    if errors:
+        with st.expander(f"Every employee ({len(errors)})"):
+            st.dataframe(pd.DataFrame(errors)[["Employee ID", "Row", "Reason"]],
+                         hide_index=True, use_container_width=True)
+    if warnings:
+        with st.expander(f"Warnings — these went through anyway ({len(warnings)})"):
+            st.dataframe(pd.DataFrame(obq.group_issues(warnings))[
+                ["Employees", "Reason", "e.g."]], hide_index=True,
+                use_container_width=True)
+
+
 def render_ui():
     st.title("Onboarding API Run Logs")
     st.markdown(
-        "Pick an Amazon DSP client and see **which implementor ran which API, when, and "
-        "how it went** — then open any run for its per-employee errors. Reads the "
-        "onboarding API's own log, so nobody needs a jumpserver and DBeaver."
+        "Pick a client and see **which APIs went through and which did not** — and for "
+        "the ones that did not, exactly which employees failed and why, ready to "
+        "download and fix."
     )
 
     token = st.session_state.get(TOKEN_KEY)
@@ -260,32 +303,29 @@ def render_ui():
     host = st.session_state.get(HOST_KEY) or obq.DEFAULT_HOST
     clients = st.session_state.get(CLIENTS_KEY) or []
     col1, col2 = st.columns([4, 1])
-    col1.caption(f"Signed in as **{st.session_state.get(USER_KEY, '')}** · {host} · "
+    col1.caption(f"Signed in as **{st.session_state.get(USER_KEY, '')}** · "
                  f"{len(clients)} Amazon clients")
     if col2.button("Sign out"):
         for key in (TOKEN_KEY, NEURON_KEY, USER_KEY, HOST_KEY, CLIENTS_KEY, RUNS_KEY,
-                    RUNS_FOR_KEY):
+                    RUNS_FOR_KEY, SHOW_KEY):
             st.session_state.pop(key, None)
         st.rerun()
 
-    labels = {ALL_CLIENTS: None}
-    names = {}
+    labels = {}
     for client in clients:
         fein = str(client["fein"])
         mark = "  ·  test client" if client.get("is_test_client") else ""
-        labels[f"{client['company_name']}  ({fein}){mark}"] = fein
-        names[fein] = client["company_name"]
+        labels[f"{client['company_name']}  ({fein}){mark}"] = (fein, client["company_name"])
 
-    col1, col2 = st.columns([3, 1])
-    picked = col1.selectbox("Client", list(labels),
-                            help="Start typing to search. Every client on the Amazon "
-                                 "exchange is here.")
-    only_failures = col2.checkbox("Failures only")
-    if st.button("Show runs", type="primary"):
+    picked = st.selectbox("Client", list(labels),
+                          help="Start typing to search. Every client on the Amazon "
+                               "exchange is here.")
+    if st.button("Show me how the APIs went", type="primary"):
         with st.spinner("Reading the log…"):
             try:
-                st.session_state[RUNS_KEY] = _runs_for_client(token, host, labels[picked])
+                st.session_state[RUNS_KEY] = _runs_for_client(token, host, labels[picked][0])
                 st.session_state[RUNS_FOR_KEY] = picked
+                st.session_state.pop(SHOW_KEY, None)
             except obq.OnboardingQueryError as e:
                 st.error(str(e))
                 return
@@ -294,36 +334,44 @@ def render_ui():
     if rows is None:
         return
     shown_for = st.session_state.get(RUNS_FOR_KEY, picked)
-    if only_failures:
-        rows = [r for r in rows if (obq.summarize(r)["fail"] or 0) > 0]
+    client_name = labels.get(shown_for, ("", shown_for))[1]
     if not rows:
-        st.info(f"No runs found for {shown_for}."
-                + (" Untick “Failures only” to see the successful ones."
-                   if only_failures else " This client has never been pushed to."))
+        st.info(f"Nothing has ever been pushed for {client_name}.")
         return
 
-    client_fein = labels.get(shown_for)
-    if client_fein:
-        render_premium_header(f"What has been run for {names.get(client_fein, shown_for)}",
-                              "One line per API — the most recent run of it, who ran it, "
-                              "and how many runs there have been in total.")
-        summary = _who_ran_what(rows)
-        if not summary.empty:
-            st.dataframe(summary, hide_index=True, use_container_width=True)
+    records = _api_status(rows)
+    bad = [r for r in records if r["fail"] or r["unfinished"]]
+    render_premium_header(
+        client_name,
+        ("Every API went through." if not bad else
+         f"{len(bad)} of {len(records)} APIs need attention."))
 
-    render_premium_header(f"All {len(rows)} run(s), newest first",
-                          "Pick one below to see its per-employee errors.")
-    frame = _runs_frame(rows, None if client_fein else names)
-    st.dataframe(frame, hide_index=True, use_container_width=True)
+    for record in records:
+        col1, col2 = st.columns([5, 1])
+        if record["unfinished"]:
+            col1.warning(f"**{record['api']}** — never finished. Started "
+                         f"{record['when']} IST by {record['by']}.")
+        elif record["fail"]:
+            col1.error(f"**{record['api']}** — **{record['fail']} of {record['total']} "
+                       f"employees failed**. Run on {record['when']} IST by "
+                       f"{record['by']}.")
+        else:
+            col1.success(f"**{record['api']}** — all {record['total']} went through. "
+                         f"Run on {record['when']} IST by {record['by']}.")
+        if record["fail"]:
+            if col2.button("See why", key=f"why_{record['run']}_{record['api']}"):
+                st.session_state[SHOW_KEY] = record
 
-    options = {f"{r['Run']} — {r['APIs'] or '?'} — {r['Started (IST)']} — "
-               f"by {r['Ran by']} — {r['Status']}": r["Run"] for _, r in frame.iterrows()}
-    chosen = st.selectbox("Open a run", list(options))
-    if st.button("Show this run's errors", type="primary"):
+    chosen = st.session_state.get(SHOW_KEY)
+    if chosen:
+        st.divider()
         with st.spinner("Reading that run…"):
             try:
-                _run_detail(token, host, options[chosen],
-                            names.get(client_fein, shown_for) if client_fein
-                            else "all clients")
+                _errors_for(token, host, chosen, client_name)
             except obq.OnboardingQueryError as e:
                 st.error(str(e))
+
+    with st.expander(f"Every run for this client ({len(rows)})"):
+        st.caption("Including the earlier attempts. The cards above only show the most "
+                   "recent run of each API.")
+        st.dataframe(_runs_frame(rows), hide_index=True, use_container_width=True)
