@@ -211,6 +211,7 @@ When you click **Download Corrected Source**, the following corrections are appl
 | **Non-standard employment status** | Updated to Active or Terminated (e.g., Inactive → Terminated) |
 | **Intern employment type** | Changed to Part-Time |
 | **Employees on leave with no termination date** | Set to Active — please mark them as excluded from payroll in Uzio |
+| **Retired / Deceased employees** | Uzio stores only Active or Terminated — set to Terminated when a termination date exists, otherwise Active with a review note |
 | **Missing work email** | Filled using personal email as a backup |
 | **Blank job title** | Filled using the department name |
 | **Blank employment type** | Set to Full-Time |
@@ -276,6 +277,7 @@ When you click **Download Corrected Source**, the following corrections are appl
         dol_status_blanks=dol_status_blanks,
         zip_fixes=zip_fixes,
         status_fixes=status_fixes,
+        retired_fixes=validation.get('retired_fixes', pd.DataFrame()),
         manager_hourly_flags=manager_hourly_flags,
         gender_invalid=gender_invalid,
     )
@@ -391,6 +393,22 @@ When you click **Download Corrected Source**, the following corrections are appl
                             old_p = df_download.at[idx, c_pos]
                             df_download.at[idx, c_pos] = "Terminated"
                             log_change(idx, "Employment Status", old_p, "Terminated", "Converted to 'Terminated' due to presence of Termination Date.")
+
+                        # Retired / Deceased: Uzio stores only Active or Terminated.
+                        # Sent as "Retired" the onboarding API records Terminated but
+                        # never writes a termination date; "Deceased" passes validation
+                        # and then arrives with no status at all.
+                        mask_gone = pos_series.str.contains('retir|deceas', na=False)
+                        for idx in df_download[mask_gone & mask_term_blank].index:
+                            old_p = df_download.at[idx, c_pos]
+                            df_download.at[idx, c_pos] = "Active"
+                            log_change(idx, "Employment Status", old_p, "Active",
+                                       "Uzio stores only Active or Terminated, and no Termination Date was given. Please add the real date, or mark this employee as exclude from payroll in Uzio.")
+                        for idx in df_download[mask_gone & ~mask_term_blank].index:
+                            old_p = df_download.at[idx, c_pos]
+                            df_download.at[idx, c_pos] = "Terminated"
+                            log_change(idx, "Employment Status", old_p, "Terminated",
+                                       "Uzio stores only Active or Terminated. Converted using the Termination Date.")
 
                 if fix_options.get('fix_dol_status'):
                     c_dol = resolved_field_map.get('Employment Type')

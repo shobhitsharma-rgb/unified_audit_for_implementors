@@ -321,6 +321,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
                               smart_driver_fixes=None, position_blanks=None,
                               dol_status_blanks=None, zip_fixes=None,
                               status_fixes=None, manager_hourly_flags=None,
+                              retired_fixes=None,
                               gender_invalid=None):
     """Render census validation results in a plain-English, two-section layout:
       1. 'Needs your attention'  — problems the user should review (red)
@@ -339,6 +340,8 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         zip_fixes = pd.DataFrame()
     if status_fixes is None:
         status_fixes = pd.DataFrame()
+    if retired_fixes is None:
+        retired_fixes = pd.DataFrame()
     if manager_hourly_flags is None:
         manager_hourly_flags = pd.DataFrame()
     if gender_invalid is None:
@@ -369,6 +372,7 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     auto_frames = [flsa_corrections, flsa_blanks, anomalies, intern_corrections,
                    email_fallbacks, smart_driver_fixes, position_blanks,
                    dol_status_blanks, zip_fixes, status_fixes, manager_hourly_flags,
+                   retired_fixes,
                    gender_invalid]
     has_auto = any(f is not None and not f.empty for f in auto_frames)
 
@@ -461,6 +465,12 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
         n = _n(status_fixes)
         fixes.append(f"**Employee was marked On Leave / Inactive but has a termination date** — so I set the status to Terminated. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_fixes)}`")
 
+    if retired_fixes is not None and not retired_fixes.empty and 'Resolution' in retired_fixes.columns:
+        retired_term = retired_fixes[retired_fixes['Resolution'] == 'terminated']
+        if not retired_term.empty:
+            n = _n(retired_term)
+            fixes.append(f"**Employee was marked Retired / Deceased and has a termination date** — so I set the status to Terminated. Uzio only stores Active or Terminated: sent as \"Retired\" the onboarding API records no termination date, and \"Deceased\" arrives with no status at all. {n} employee{'s' if n != 1 else ''}: `{_ids_str(retired_term)}`")
+
     if fixes:
         st.markdown(_callout(
             "ok",
@@ -487,6 +497,12 @@ def render_validation_results(hard_errors, flsa_corrections, flsa_blanks,
     if status_review is not None and not status_review.empty:
         n = _n(status_review)
         reviews.append(f"**Employee was marked On Leave / Inactive with no termination date** — so I set the status to Active. Please also mark this employee as 'exclude from payroll' in Uzio. {n} employee{'s' if n != 1 else ''}: `{_ids_str(status_review)}`")
+
+    if retired_fixes is not None and not retired_fixes.empty and 'Resolution' in retired_fixes.columns:
+        retired_active = retired_fixes[retired_fixes['Resolution'] == 'active']
+        if not retired_active.empty:
+            n = _n(retired_active)
+            reviews.append(f"**Employee was marked Retired / Deceased but has no termination date** — Uzio only stores Active or Terminated, so I set the status to Active. Please add the real termination date, or mark the employee as 'exclude from payroll' in Uzio. {n} employee{'s' if n != 1 else ''}: `{_ids_str(retired_active)}`")
     if manager_hourly_flags is not None and not manager_hourly_flags.empty:
         n = _n(manager_hourly_flags)
         reviews.append(f"**A manager / non-delivery role is marked Hourly or Non-Exempt** — these roles are usually Salaried and Exempt, so this may be a data error. I left the values unchanged — please double-check each one. {n} employee{'s' if n != 1 else ''}: `{_ids_str(manager_hourly_flags)}`")

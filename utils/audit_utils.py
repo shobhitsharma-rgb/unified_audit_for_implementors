@@ -539,6 +539,7 @@ def validate_source_data(df_source, resolved_field_map):
     smart_driver_fixes = []
     zip_fixes = []
     status_fixes = []
+    retired_fixes = []
     manager_hourly_flags = []
     gender_invalid = []
 
@@ -646,7 +647,12 @@ def validate_source_data(df_source, resolved_field_map):
                 # 'Inactive', and any 'Leave' status. Leave/Inactive are auto-handled
                 # on download (-> Terminated if a term date exists, else Active), so
                 # they must NOT be flagged red here.
-                is_standard = status_lower in ['a', 't', 'i'] or any(s in status_lower for s in ['active', 'terminated', 'inactive', 'leave'])
+                # Retired / Deceased are auto-handled on download too (same rule as
+                # Leave / Inactive), so they are not "non-standard" any more.
+                is_standard = (status_lower in ['a', 't', 'i']
+                               or any(s in status_lower for s in
+                                      ['active', 'terminated', 'inactive', 'leave',
+                                       'retir', 'deceas']))
 
                 if not is_standard or status_lower in ['a04l', 'a08v']:
                     missing.append(f"Non-standard Status ({status_val})")
@@ -655,6 +661,23 @@ def validate_source_data(df_source, resolved_field_map):
                 is_term = status_lower in ['t'] or any(s in status_lower for s in ['terminated'])
                 is_inactive = status_lower in ['i'] or any(s in status_lower for s in ['inactive'])
                 is_leave = 'leave' in status_lower
+                # Uzio has no Retired or Deceased status: the onboarding API turns
+                # "Retired" into Terminated but never writes the termination date, and
+                # "Deceased" into no status at all. Converting here is what keeps those
+                # employees whole, and it follows the Leave / Inactive rule exactly.
+                is_gone = 'retir' in status_lower or 'deceas' in status_lower
+
+                if is_gone:
+                    has_term = False
+                    if term_date_col and term_date_col in df_source.columns:
+                        tdate = row.get(term_date_col)
+                        has_term = not (pd.isna(tdate) or str(tdate).strip() == "" or str(tdate).lower() == "nan")
+                    retired_fixes.append({
+                        'Employee ID': emp_ref,
+                        'Name': get_emp_name(row),
+                        'Original Status': status_val,
+                        'Resolution': 'terminated' if has_term else 'active',
+                    })
 
                 if is_leave or is_inactive:
                     # Mirror the download's fix_leave_to_active: a term date means the
@@ -1103,6 +1126,7 @@ def validate_source_data(df_source, resolved_field_map):
         'smart_driver_fixes': pd.DataFrame(smart_driver_fixes),
         'zip_fixes': pd.DataFrame(zip_fixes),
         'status_fixes': pd.DataFrame(status_fixes),
+        'retired_fixes': pd.DataFrame(retired_fixes),
         'manager_hourly_flags': pd.DataFrame(manager_hourly_flags),
         'gender_invalid': pd.DataFrame(gender_invalid),
         'error_summary': error_summary
@@ -1185,6 +1209,15 @@ def generate_uzio_template(df_source, vendor_field_map, fix_options=None):
                         if 'leave' in s: return 'ACTIVE'
                         if 'term' in s: return 'TERMINATED'
                         if 'active' in s: return 'ACTIVE'
+                        # Uzio stores only Active or Terminated. Sent as "Retired" the
+                        # onboarding API records Terminated with no termination date;
+                        # sent as "Deceased" it records no status at all.
+                        if 'retir' in s or 'deceas' in s:
+                            term_col = vendor_field_map.get('Termination Date')
+                            tdate = row.get(term_col) if term_col else None
+                            if tdate is not None and pd.notna(tdate) and str(tdate).strip() != "":
+                                return 'TERMINATED'
+                            return 'ACTIVE'
                     
                     if fix_options and fix_options.get('fix_inactive', False):
                         if 'inactive' in s:
