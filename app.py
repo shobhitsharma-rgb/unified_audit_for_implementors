@@ -1,5 +1,6 @@
 import streamlit as st
 import importlib
+import sys
 
 # Set Page Config (Must be first)
 st.set_page_config(page_title="Data Migration Assistant", layout="wide", page_icon="🤖")
@@ -154,6 +155,20 @@ with st.sidebar:
 # ---------------------------------------------------------
 # Router Logic
 # ---------------------------------------------------------
+# The shared engine has to be refreshed before any tool module that imports from
+# it. A tool module binds `from utils.x import y` at import time, so reloading the
+# tool alone can leave it calling a stale helper - a new argument then lands on the
+# old signature and raises TypeError. Reload the helpers first, the tool after.
+for _shared in ("utils.audit_utils", "utils.ui_components", "utils.file_io",
+                "utils.preprocess_source_data", "utils.job_title_mapper",
+                "utils.withholding_core", "utils.id_input"):
+    _module = sys.modules.get(_shared)
+    if _module is not None:
+        try:
+            importlib.reload(_module)
+        except Exception:
+            pass          # a helper that cannot reload must never block the app
+
 if tool_option == "ADP - Deduction Audit":
     from apps.adp import deduction_audit
     importlib.reload(deduction_audit) 
