@@ -1729,6 +1729,16 @@ def selective_update_uzio(df_source, df_template, selected_uzio_cols, vendor_fie
                         s = str(val).lower()
                         if fix_options and fix_options.get('fix_status', False):
                             if 'not hired' in s: formatted_val = 'EXCLUDE'
+                            elif 'retir' in s or 'deceas' in s:
+                                # Uzio stores only Active or Terminated. Synced as
+                                # "Retired" the onboarding API records Terminated but
+                                # never writes a termination date; "Deceased" maps to no
+                                # status at all. Same rule as the Census Sanity download.
+                                term_col = vendor_field_map.get('Termination Date')
+                                tdate = source_row_data.get(term_col) if term_col else None
+                                has_term = (tdate is not None and pd.notna(tdate)
+                                            and str(tdate).strip().lower() not in ("", "nan"))
+                                formatted_val = 'TERMINATED' if has_term else 'ACTIVE'
                             elif 'inactive' in s or 'term' in s: formatted_val = 'TERMINATED'
                             elif 'active' in s or 'leave' in s: formatted_val = 'ACTIVE'
                             else: formatted_val = str(val).strip().upper()
