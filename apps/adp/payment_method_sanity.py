@@ -748,6 +748,11 @@ and auto-correct unsupported configurations.
         # Employee ID, Name, Rule, Severity, Issue, Action). Plain UTF-8, no BOM.
         changelog_bytes = issues_df.to_csv(index=False).encode("utf-8")
 
+        # Keep the corrected file for the Push to Uzio section below: the API parses
+        # it with the same EmployeeMasterADP bindings as the census, so this CSV is
+        # exactly what `direct_deposit_file` expects.
+        st.session_state["adp_pm_cached_files"] = {"csv": csv_bytes, "filename": csv_name}
+
         col1, col2, col3 = st.columns(3)
         with col1:
             st.download_button(
@@ -774,6 +779,12 @@ and auto-correct unsupported configurations.
                 mime="text/csv",
                 key="adp_pm_sanity_dl_changelog",
             )
+
+        # --- Push to Uzio (Production) Section ---
+        from utils.onboarding_api_client import render_push_payment_method_section
+        render_push_payment_method_section(vendor="ADP",
+                                           data_key="adp_pm_cached_files",
+                                           key_prefix="adp_pm_push2uzio")
 
 
 if __name__ == "__main__":
