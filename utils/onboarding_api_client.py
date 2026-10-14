@@ -17,6 +17,7 @@ from utils.onboarding_core import (  # noqa: F401  (re-exported for existing cal
     fetch_run_log, find_run_since, group_issues, ist, lost_answer, login,
     needs_recheck, new_result, parse_ts, push_employee_census, run_issues,
 )
+from utils import neuronops_client as neuron
 from utils.ui_components import _callout
 
 from datetime import datetime, timezone
@@ -109,6 +110,53 @@ def render_push_result(result: dict, key_prefix: str):
     )
 
 
+TYPE_IT = "— type a FEIN myself —"
+
+
+def _fein_picker(key_prefix: str, username: str, password: str) -> str:
+    """The employer, by name where possible.
+
+    Nobody remembers a FEIN, so once the credentials are in, this offers the Amazon
+    client list as a searchable dropdown — the same list the Onboarding Logs tool
+    uses, read from the reporting database with the same login. The typed box stays
+    for anything not on that exchange, and for when the list cannot be loaded at all.
+    """
+    clients_key = f"{key_prefix}_clients"
+    clients = st.session_state.get(clients_key)
+
+    if not clients:
+        col1, col2 = st.columns([3, 1])
+        fein = col1.text_input(
+            "Employer FEIN", key=f"{key_prefix}_fein",
+            help="Same FEIN used to log into Uzio for this employer. Enter your "
+                 "username and password above, then load the list to pick by name.")
+        col2.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if col2.button("Pick by name", key=f"{key_prefix}_load",
+                       disabled=not (username and password),
+                       help="Loads the Amazon client list using the credentials above."):
+            try:
+                with st.spinner("Loading the client list…"):
+                    st.session_state[clients_key] = neuron.amazon_clients(
+                        neuron.login(username.strip(), password))
+            except neuron.NeuronOpsError as e:
+                st.warning(f"Could not load the client list: {e} — type the FEIN instead.")
+            else:
+                st.rerun()
+        return fein
+
+    options = {}
+    for client in clients:
+        mark = "  ·  test client" if neuron.is_true(client.get("is_test_client")) else ""
+        options[f"{client['company_name']}  ({client['fein']}){mark}"] = str(client["fein"])
+
+    picked = st.selectbox(f"Employer  ({len(options)} Amazon clients)",
+                          [TYPE_IT] + list(options), key=f"{key_prefix}_pick",
+                          help="Start typing to search by name.")
+    if picked == TYPE_IT:
+        return st.text_input("Employer FEIN", key=f"{key_prefix}_fein")
+    return options[picked]
+
+
 def render_push_to_uzio_section(vendor: str, data_key: str, jt_key_prefix: str, key_prefix: str):
     """Renders the 'Push Census to Uzio (Production)' section.
 
@@ -137,10 +185,6 @@ def render_push_to_uzio_section(vendor: str, data_key: str, jt_key_prefix: str, 
         st.info("Complete the **Amazon Job Title Mapping** table above first — this API requires it.")
         return
 
-    fein = st.text_input(
-        "Employer FEIN", key=f"{key_prefix}_fein",
-        help="Same FEIN used to log into Uzio for this employer.",
-    )
     col_u, col_p = st.columns(2)
     with col_u:
         username = st.text_input("Uzio Username", key=f"{key_prefix}_user")
@@ -149,6 +193,7 @@ def render_push_to_uzio_section(vendor: str, data_key: str, jt_key_prefix: str, 
             "Uzio Password", type="password", key=f"{key_prefix}_pass",
             help="Never stored -- used only for this request.",
         )
+    fein = _fein_picker(key_prefix, username, password)
 
     include_lic = st.checkbox(
         "Also include a License & Emergency Contact file (optional)",
@@ -240,10 +285,6 @@ def render_push_payment_method_section(vendor: str, data_key: str, key_prefix: s
         st.info("Run the sanity check above first — the corrected file isn't ready yet.")
         return
 
-    fein = st.text_input(
-        "Employer FEIN", key=f"{key_prefix}_fein",
-        help="Same FEIN used to log into Uzio for this employer.",
-    )
     col_u, col_p = st.columns(2)
     with col_u:
         username = st.text_input("Uzio Username", key=f"{key_prefix}_user")
@@ -252,6 +293,7 @@ def render_push_payment_method_section(vendor: str, data_key: str, key_prefix: s
             "Uzio Password", type="password", key=f"{key_prefix}_pass",
             help="Never stored — used only for this request.",
         )
+    fein = _fein_picker(key_prefix, username, password)
 
     confirm = st.checkbox(
         f"I confirm this pushes to **PRODUCTION** for FEIN `{fein or '____'}` and I've "

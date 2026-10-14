@@ -82,3 +82,31 @@ def sql_in_list(values) -> str:
     import re
     safe = [v.strip() for v in values if v and re.fullmatch(r"[A-Za-z0-9._@+-]{1,64}", v.strip())]
     return ",".join("'" + v + "'" for v in safe)
+
+
+# Every Amazon DSP employer sits on this exchange; it is what makes a client list
+# "the Amazon clients" rather than every employer in the database.
+AMAZON_EXCHANGE_ID = "EX-20243277-1b50-4035-821d-d0fcd9b895a9"
+
+
+def amazon_clients(token: str, host: str = DEFAULT_HOST) -> list:
+    """[{fein, company_name, live_status, is_test_client}] for the Amazon exchange.
+
+    Sorted by name, because every caller shows it to someone who knows the client by
+    name and not by FEIN. Rows without both a name and a FEIN are dropped: they
+    cannot be picked or pushed to.
+    """
+    rows = query(token, "select fein, company_name, live_status, is_test_client "
+                 "from employer_organization where exchange_id = "
+                 f"'{AMAZON_EXCHANGE_ID}' and deleted = 0 order by company_name",
+                 host=host)
+    return [r for r in rows if r.get("fein") and r.get("company_name")]
+
+
+def is_true(value) -> bool:
+    """A 0/1 column as this endpoint returns it: a STRING, so '0' is truthy in Python.
+
+    Every boolean-ish column comes back quoted, which makes `if row["is_test_client"]`
+    silently true for everyone. Compare the text instead.
+    """
+    return str(value).strip().lower() in ("1", "true", "yes", "y")

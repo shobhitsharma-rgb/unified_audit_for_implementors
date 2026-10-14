@@ -27,8 +27,6 @@ from utils import neuronops_client as neuron
 from utils import onboarding_query as obq
 from utils.ui_components import _callout, render_premium_header
 
-# Every DSP client sits on this exchange; it is what makes the list "Amazon".
-AMAZON_EXCHANGE_ID = "EX-20243277-1b50-4035-821d-d0fcd9b895a9"
 
 TOKEN_KEY = "obl_token"
 NEURON_KEY = "obl_neuron"
@@ -38,14 +36,6 @@ CLIENTS_KEY = "obl_clients"
 RUNS_KEY = "obl_runs"
 RUNS_FOR_KEY = "obl_runs_for"
 SHOW_KEY = "obl_show"
-
-
-def _amazon_clients(token) -> list:
-    """Every client on the Amazon exchange, by name."""
-    rows = neuron.query(token, "select fein, company_name, live_status, is_test_client "
-                        "from employer_organization where exchange_id = "
-                        f"'{AMAZON_EXCHANGE_ID}' and deleted = 0 order by company_name")
-    return [r for r in rows if r.get("fein") and r.get("company_name")]
 
 
 def _mint_onboarding_token(username, password, clients, host):
@@ -88,7 +78,7 @@ def _sign_in():
             st.error(str(e))
             return
         try:
-            clients = _amazon_clients(neuron_token)
+            clients = neuron.amazon_clients(neuron_token)
         except neuron.NeuronOpsError as e:
             st.error(f"Signed in, but the client list could not be read: {e}")
             return
@@ -391,7 +381,7 @@ def render_ui():
     labels = {}
     for client in clients:
         fein = str(client["fein"])
-        mark = "  ·  test client" if client.get("is_test_client") else ""
+        mark = "  ·  test client" if neuron.is_true(client.get("is_test_client")) else ""
         labels[f"{client['company_name']}  ({fein}){mark}"] = (fein, client["company_name"])
 
     with st.expander("How to read this"):
