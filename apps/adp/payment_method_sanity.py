@@ -716,6 +716,16 @@ and auto-correct unsupported configurations.
     if not adp_file:
         return
 
+    # A Streamlit button is True only on the rerun its own click caused. Everything
+    # below used to live inside the button's block, so the first keystroke in the
+    # Push section's FEIN box reran the script, the button came back False, and the
+    # results, the downloads and the Push block all vanished. Run on the click, keep
+    # the result, and render from the result.
+    results_key = "adp_pm_sanity_results"
+    signature = (adp_file.name, getattr(adp_file, "size", None))
+    if st.session_state.get(results_key, {}).get("signature") != signature:
+        st.session_state.pop(results_key, None)       # a different upload, a stale run
+
     if st.button("Run Sanity Check", type="primary", key="adp_pm_sanity_run"):
         try:
             with st.spinner("Analyzing payment methods..."):
@@ -724,67 +734,80 @@ and auto-correct unsupported configurations.
             st.error(f"Failed: {e}")
             st.exception(e)
             return
+        st.session_state[results_key] = {
+            "signature": signature, "report_bytes": report_bytes, "csv_bytes": csv_bytes,
+            "summary_df": summary_df, "issues_df": issues_df, "preview_df": preview_df,
+        }
 
-        st.success("Sanity check complete.")
+    cached = st.session_state.get(results_key)
+    if not cached:
+        st.info("Click **Run Sanity Check** to analyse this file.")
+        return
+    report_bytes = cached["report_bytes"]
+    csv_bytes = cached["csv_bytes"]
+    summary_df, issues_df, preview_df = (cached["summary_df"], cached["issues_df"],
+                                         cached["preview_df"])
 
-        st.subheader("Summary")
-        st.dataframe(summary_df, hide_index=True, use_container_width=True)
+    st.success("Sanity check complete.")
 
-        if issues_df.empty:
-            st.info("No issues found — the file already conforms to Uzio rules.")
-        else:
-            st.subheader("Issues")
-            st.dataframe(issues_df, hide_index=True, use_container_width=True)
+    st.subheader("Summary")
+    st.dataframe(summary_df, hide_index=True, use_container_width=True)
 
-            st.subheader("Before / After")
-            st.dataframe(preview_df, hide_index=True, use_container_width=True)
+    if issues_df.empty:
+        st.info("No issues found — the file already conforms to Uzio rules.")
+    else:
+        st.subheader("Issues")
+        st.dataframe(issues_df, hide_index=True, use_container_width=True)
 
-        timestamp = pd.Timestamp.now().strftime("%d_%m_%Y_%H%M")
-        xlsx_name = f"{client_name}_ADP_Payment_Method_Sanity_{timestamp}.xlsx"
-        csv_name = f"{client_name}_ADP_Payment_Method_Corrected_{timestamp}.csv"
-        changelog_name = f"{client_name}_ADP_Payment_Method_ChangeLog_{timestamp}.csv"
+        st.subheader("Before / After")
+        st.dataframe(preview_df, hide_index=True, use_container_width=True)
 
-        # Change Log = every fix / flag the tool recorded (one row per action:
-        # Employee ID, Name, Rule, Severity, Issue, Action). Plain UTF-8, no BOM.
-        changelog_bytes = issues_df.to_csv(index=False).encode("utf-8")
+    timestamp = pd.Timestamp.now().strftime("%d_%m_%Y_%H%M")
+    xlsx_name = f"{client_name}_ADP_Payment_Method_Sanity_{timestamp}.xlsx"
+    csv_name = f"{client_name}_ADP_Payment_Method_Corrected_{timestamp}.csv"
+    changelog_name = f"{client_name}_ADP_Payment_Method_ChangeLog_{timestamp}.csv"
 
-        # Keep the corrected file for the Push to Uzio section below: the API parses
-        # it with the same EmployeeMasterADP bindings as the census, so this CSV is
-        # exactly what `direct_deposit_file` expects.
-        st.session_state["adp_pm_cached_files"] = {"csv": csv_bytes, "filename": csv_name}
+    # Change Log = every fix / flag the tool recorded (one row per action:
+    # Employee ID, Name, Rule, Severity, Issue, Action). Plain UTF-8, no BOM.
+    changelog_bytes = issues_df.to_csv(index=False).encode("utf-8")
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.download_button(
-                label="📊 Download Full Report (.xlsx)",
-                data=report_bytes,
-                file_name=xlsx_name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-                key="adp_pm_sanity_dl_xlsx",
-            )
-        with col2:
-            st.download_button(
-                label="📄 Download Corrected Source (.csv)",
-                data=csv_bytes,
-                file_name=csv_name,
-                mime="text/csv",
-                key="adp_pm_sanity_dl_csv",
-            )
-        with col3:
-            st.download_button(
-                label="📝 Download Change Log (.csv)",
-                data=changelog_bytes,
-                file_name=changelog_name,
-                mime="text/csv",
-                key="adp_pm_sanity_dl_changelog",
-            )
+    # Keep the corrected file for the Push to Uzio section below: the API parses
+    # it with the same EmployeeMasterADP bindings as the census, so this CSV is
+    # exactly what `direct_deposit_file` expects.
+    st.session_state["adp_pm_cached_files"] = {"csv": csv_bytes, "filename": csv_name}
 
-        # --- Push to Uzio (Production) Section ---
-        from utils.onboarding_api_client import render_push_payment_method_section
-        render_push_payment_method_section(vendor="ADP",
-                                           data_key="adp_pm_cached_files",
-                                           key_prefix="adp_pm_push2uzio")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.download_button(
+            label="📊 Download Full Report (.xlsx)",
+            data=report_bytes,
+            file_name=xlsx_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            key="adp_pm_sanity_dl_xlsx",
+        )
+    with col2:
+        st.download_button(
+            label="📄 Download Corrected Source (.csv)",
+            data=csv_bytes,
+            file_name=csv_name,
+            mime="text/csv",
+            key="adp_pm_sanity_dl_csv",
+        )
+    with col3:
+        st.download_button(
+            label="📝 Download Change Log (.csv)",
+            data=changelog_bytes,
+            file_name=changelog_name,
+            mime="text/csv",
+            key="adp_pm_sanity_dl_changelog",
+        )
+
+    # --- Push to Uzio (Production) Section ---
+    from utils.onboarding_api_client import render_push_payment_method_section
+    render_push_payment_method_section(vendor="ADP",
+                                       data_key="adp_pm_cached_files",
+                                       key_prefix="adp_pm_push2uzio")
 
 
 if __name__ == "__main__":

@@ -135,6 +135,7 @@ with st.sidebar:
             "Paycom - Census Sanity Check",
             "Paycom - Census Audit",
             "Paycom - Payment Audit",
+            "Paycom - Payment Method Sanity Check",
             "Paycom - Withholding Audit"
         ], index=0, label_visibility="collapsed")
         
@@ -253,6 +254,11 @@ elif tool_option == "Paycom - Withholding Audit":
     from apps.paycom import withholding_audit
     importlib.reload(withholding_audit)
     withholding_audit.render_ui()
+
+elif tool_option == "Paycom - Payment Method Sanity Check":
+    from apps.paycom import payment_method_sanity as pc_payment_method_sanity
+    importlib.reload(pc_payment_method_sanity)
+    pc_payment_method_sanity.render_ui()
 
 elif tool_option == "Paycom - Payment Audit":
     from apps.paycom import payment_audit
