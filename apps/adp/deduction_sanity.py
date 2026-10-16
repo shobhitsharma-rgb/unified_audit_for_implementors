@@ -43,6 +43,8 @@ CAT_EWA = "Earned-wage access / reimbursement"
 CAT_USER = "Ticked by you"
 CAT_TOTALS = "Report Totals row"
 CAT_BLANK_ID = "Blank Associate ID"
+CAT_DUP = "Identical duplicate"
+DUP_OF = "Duplicate Of Row"
 
 # A plain decimal, which is what BigDecimal (the API's parser) accepts once
 # commas are dropped. "$25.00" and "3%" fail it, as they fail the API.
@@ -177,10 +179,30 @@ def _source_rows(df, header_row):
     return pd.Series(range(header_row + 1, header_row + 1 + len(df)), index=df.index)
 
 
-def apply_removals(df, cols, header_row, remove_descriptions):
+def _duplicate_groups(df, cols):
+    """[(group index list, identical?)] for every employee + description seen twice or more.
+
+    "Identical" means every row of the group carries the same Associate ID, code,
+    description, amount and % (spaces ignored) — typically one employee holding two
+    positions. A group with any difference is NOT identical as a whole, because
+    which row is right is the client's call.
+    """
+    key = df[cols[COL_ID]].str.strip() + "\x1f" + df[cols[COL_DESC]].str.strip()
+    api = [cols[c] for c in REQUIRED_COLUMNS]
+    out = []
+    for _, g in df.groupby(key, sort=False):
+        if len(g) > 1:
+            same = len(g[api].apply(lambda col: col.str.strip()).drop_duplicates()) == 1
+            out.append((list(g.index), same))
+    return out
+
+
+def apply_removals(df, cols, header_row, remove_descriptions, remove_duplicates=False):
     """Split the file into kept rows and removed rows (with a reason each).
 
     `remove_descriptions` is the set of descriptions the user left ticked.
+    `remove_duplicates` keeps the FIRST row of each identical-duplicate group and
+    removes the rest; groups whose rows differ stay, and are flagged.
     """
     src = _source_rows(df, header_row)
     blank_id = df[cols[COL_ID]].str.strip() == ""
@@ -193,10 +215,22 @@ def apply_removals(df, cols, header_row, remove_descriptions):
     reason[ticked] = df.loc[ticked, cols[COL_DESC]].map(
         lambda d: default_category(d) or CAT_USER)
 
-    removed = df[reason != ""].copy()
-    removed.insert(0, "Reason", reason[reason != ""])
-    removed.insert(0, "Source Row", src[reason != ""])
-    kept = df[reason == ""].copy()
+    dup_of = pd.Series("", index=df.index, dtype=object)
+    if remove_duplicates:
+        for idx, identical in _duplicate_groups(df[reason == ""], cols):
+            if identical:
+                for i in idx[1:]:
+                    reason[i] = CAT_DUP
+                    # text, like the blanks around it: a column mixing "" and ints
+                    # cannot be shown by st.dataframe (pyarrow refuses it)
+                    dup_of[i] = str(int(src[idx[0]]))
+
+    gone = reason != ""
+    removed = df[gone].copy()
+    removed.insert(0, DUP_OF, dup_of[gone])
+    removed.insert(0, "Reason", reason[gone])
+    removed.insert(0, "Source Row", src[gone])
+    kept = df[~gone].copy()
     return kept, removed.reset_index(drop=True)
 
 
@@ -241,17 +275,13 @@ def find_flags(kept, cols, header_row, src_rows=None):
         if _SSN.match(aid.strip()):
             add(idx, "Associate ID looks like an SSN")
 
-    # Duplicates: same employee + description. Nothing is removed (Rohit's call).
-    key = kept[cols[COL_ID]].str.strip() + "\x1f" + kept[cols[COL_DESC]].str.strip()
-    api = [cols[c] for c in REQUIRED_COLUMNS]
-    for _, g in kept.groupby(key, sort=False):
-        if len(g) < 2:
-            continue
-        identical = len(g[api].apply(lambda col: col.str.strip()).drop_duplicates()) == 1
+    # Duplicates still present: identical ones when "Remove identical duplicates" is
+    # off, and differing ones always (which row is right is the client's call).
+    for idx_list, identical in _duplicate_groups(kept, cols):
         label = ("Duplicate - identical rows for the same employee and description"
                  if identical else
                  "Duplicate - same employee and description, different code or amount")
-        for idx in g.index:
+        for idx in idx_list:
             add(idx, label)
 
     if not issues:
@@ -265,11 +295,14 @@ def find_flags(kept, cols, header_row, src_rows=None):
 
 # ---------------------------------------------------------------- run
 
-def run_sanity(file, remove_descriptions=None):
+def run_sanity(file, remove_descriptions=None, remove_duplicates=True):
     """Read, remove, flag. `remove_descriptions=None` means the default ticks.
 
+    `remove_duplicates` (on by default, Rohit's call) drops all but the first row
+    of each identical-duplicate group.
+
     Returns (result, error). result = {"df", "cols", "header_row", "summary",
-    "kept", "removed", "flags", "remove"}.
+    "kept", "removed", "flags", "remove", "remove_duplicates"}.
     """
     info, err = read_deduction_file(file)
     if err:
@@ -281,12 +314,14 @@ def run_sanity(file, remove_descriptions=None):
     summary = description_summary(df, cols)
     if remove_descriptions is None:
         remove_descriptions = {d["description"] for d in summary if d["default"]}
-    kept, removed = apply_removals(df, cols, info["header_row"], set(remove_descriptions))
+    kept, removed = apply_removals(df, cols, info["header_row"], set(remove_descriptions),
+                                   remove_duplicates)
     src = _source_rows(df, info["header_row"])
     flags = find_flags(kept, cols, info["header_row"], src[kept.index])
     return {"df": df, "cols": cols, "header_row": info["header_row"], "summary": summary,
             "kept": kept.reset_index(drop=True), "removed": removed, "flags": flags,
-            "remove": set(remove_descriptions)}, None
+            "remove": set(remove_descriptions),
+            "remove_duplicates": bool(remove_duplicates)}, None
 
 
 def corrected_csv_bytes(kept):
@@ -309,7 +344,9 @@ def change_log(result):
                      "Name": r[name_col] if name_col else "",
                      "Deduction Code": r[cols[COL_CODE]],
                      "Deduction Description": r[cols[COL_DESC]],
-                     "Action": "Row removed", "Reason": r["Reason"]})
+                     "Action": "Row removed",
+                     "Reason": (f"{CAT_DUP} - row {r[DUP_OF]} kept" if r["Reason"] == CAT_DUP
+                                else r["Reason"])})
     return pd.DataFrame(rows, columns=["Source Row", "Associate ID", "Name", "Deduction Code",
                                        "Deduction Description", "Action", "Reason"])
 
@@ -320,7 +357,7 @@ def report_xlsx_bytes(result):
     sheets = {
         "Corrected Data": result["kept"],
         "Removed Rows": removed if len(removed) else pd.DataFrame({"Message": ["No rows removed"]}),
-        "Garnishments": (garn.drop(columns="Reason") if len(garn)
+        "Garnishments": (garn.drop(columns=["Reason", DUP_OF]) if len(garn)
                          else pd.DataFrame({"Message": ["No garnishment rows removed"]})),
         "Flagged Rows": (result["flags"] if len(result["flags"])
                          else pd.DataFrame({"Message": ["No issues found"]})),
@@ -409,7 +446,8 @@ def render_ui():
     Upload the **ADP Voluntary Deduction** report (.xlsx / .csv).
 
     - **Rows are removed, values are never changed.** Pick the descriptions to drop
-      below; the Report Totals line always goes.
+      below; the Report Totals line always goes, and identical duplicate rows are cut
+      to one unless you untick that box.
     - Anything the onboarding API would reject — blank fields, amount *and* %,
       non-numeric values, extra spaces, duplicates, SSN-like IDs — is **flagged** with
       the Associate IDs, for you to fix.
@@ -434,7 +472,14 @@ def render_ui():
 
     tag = zlib.crc32(repr((f.name, getattr(f, "size", None))).encode())
     chosen = _render_removal_choices(first["summary"], tag)
-    result = first if chosen == first["remove"] else run_sanity(f, chosen)[0]
+    dedupe = st.checkbox(
+        "Remove identical duplicates (keep the first row)", value=True, key=f"ded_dup_{tag}",
+        help="When one employee has the same deduction twice with the same code, "
+             "description, amount and % (usually two positions), only the first row is "
+             "kept. Rows of the same deduction with a DIFFERENT code or amount are never "
+             "removed — which one is right is for the client to say — and stay flagged.")
+    result = (first if chosen == first["remove"] and dedupe == first["remove_duplicates"]
+              else run_sanity(f, chosen, dedupe)[0])
 
     _render_results(result)
 
