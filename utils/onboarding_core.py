@@ -9,6 +9,8 @@ What this does:
   * login()                -> JWT, from username + password + FEIN
   * push_employee_census() -> multipart upload of the corrected census
   * push_payment_method()  -> multipart upload of the corrected direct deposit file
+  * push_employee_deductions() -> multipart upload of the corrected deduction
+    file plus its mapping
   * fetch_run_log() / find_run_since() -> read that run's row back through the
     read-only /app/onboarding/query endpoint (PHIX-98714)
 
@@ -135,6 +137,33 @@ def push_payment_method(jwt_token: str, vendor: str,
         return requests.post(url, headers=headers,
                              files={field: (payment_filename, payment_bytes)},
                              timeout=timeout)
+    except requests.RequestException as e:
+        raise OnboardingAPIError(f"Could not reach {url}: {e}") from e
+
+
+def push_employee_deductions(jwt_token: str,
+                             deduction_bytes: bytes, deduction_filename: str,
+                             mapping_bytes: bytes, mapping_filename: str,
+                             prod_host: str = DEFAULT_PROD_HOST, timeout: int = 120):
+    """POST {prod_host}/app/onboarding/api/employee/deductions (multipart).
+
+    BOTH parts are mandatory for both vendors — the endpoint declares neither
+    optional and `MasterRequestDTO.validateInputFilesForProcess(EMPLOYEE_DEDUCTIONS)`
+    requires them without a vendor branch. The mapping is what turns a source
+    deduction description into a Uzio deduction code, and the API looks it up by
+    description EXACTLY, so an unmapped description silently takes its employees
+    with it.
+
+    Returns the raw requests.Response so the caller can inspect status/body.
+    """
+    url = f"{prod_host.rstrip('/')}/app/onboarding/api/employee/deductions"
+    headers = {"Accept": "application/json", "AuthorizationHeader": jwt_token}
+    files = {
+        "employee_deduction_file": (deduction_filename, deduction_bytes),
+        "deduction_mapping_file": (mapping_filename, mapping_bytes),
+    }
+    try:
+        return requests.post(url, headers=headers, files=files, timeout=timeout)
     except requests.RequestException as e:
         raise OnboardingAPIError(f"Could not reach {url}: {e}") from e
 
